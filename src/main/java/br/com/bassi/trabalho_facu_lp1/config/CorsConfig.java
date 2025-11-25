@@ -16,7 +16,7 @@ public class CorsConfig {
       @Override
       public void addCorsMappings(CorsRegistry registry) {
         registry.addMapping("/**")
-            .allowedOrigins("http://bucket-evt.s3-website-us-east-1.amazonaws.com")
+            .allowedOrigins("*")
             .allowedMethods(HttpMethod.GET.name(),
                 HttpMethod.POST.name(),
                 HttpMethod.PUT.name(),
