@@ -73,7 +73,7 @@ public class EventoService {
                         evento.setEstadoEvento(dto.estadoEvento() != null ? dto.estadoEvento() : EnumEstadoEvento.ABERTO);
                     }
 
-                    if (eventoRepository.existsByTituloAndNotId(dto.titulo(),id)) {
+                    if (eventoRepository.existsByTituloAndIdNot(dto.titulo(),id)) {
                         throw new TituloJaCadastradoException("Titulo já cadastrado!");
                     }
 

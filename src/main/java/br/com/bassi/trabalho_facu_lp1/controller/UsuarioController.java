@@ -18,7 +18,7 @@ public class UsuarioController {
 
     private final UsuarioService usuarioService;
 
-    @PreAuthorize("hasAuthority(T(br.com.bassi.trabalho_facu_lp1.domain.enuns.EnumCargos).GERENTE.name())")
+    
     @GetMapping
     public ResponseEntity<List<UsuarioResponseDTO>> listarTodos() {
         return ResponseEntity.ok(usuarioService.listarTodos());

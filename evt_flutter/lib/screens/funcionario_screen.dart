@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/funcionario_service.dart';
-
+import '../theme/app_theme.dart';
+import '../widgets/app_header.dart';
 
 class FuncionariosPage extends StatefulWidget {
   const FuncionariosPage({Key? key}) : super(key: key);
@@ -122,100 +123,155 @@ class _FuncionariosPageState extends State<FuncionariosPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text("Funcionários")),
+      appBar:  AppHeader(),
+
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(16),
+        padding: EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            /// Título + botão de expandir
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  funcionarioEditando != null
-                      ? "Atualizar Funcionário"
-                      : "Cadastro de Funcionário",
-                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                ),
-                ElevatedButton(
-                  onPressed: () =>
-                      setState(() => mostrarForm = !mostrarForm),
-                  child: Text(
-                      mostrarForm ? "Fechar Formulário" : "Expandir Formulário"),
-                )
-              ],
+
+            /// CARD DO FORMULÁRIO
+            Container(
+              padding: EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: AppTheme.card,
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: AppTheme.border),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black12,
+                    blurRadius: 8,
+                    offset: Offset(0, 4),
+                  )
+                ],
+              ),
+
+              child: Column(
+                children: [
+
+                  /// CABEÇALHO
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text(
+                        funcionarioEditando != null
+                            ? "Atualizar Funcionário"
+                            : "Cadastro de Funcionário",
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+                      ),
+                      TextButton(
+                        onPressed: () => setState(() => mostrarForm = !mostrarForm),
+                        child: Text(
+                          mostrarForm ? "Fechar" : "Expandir",
+                          style: TextStyle(color: AppTheme.primary),
+                        ),
+                      )
+                    ],
+                  ),
+
+                  if (mostrarForm) ...[
+                    SizedBox(height: 14),
+
+                    TextField(controller: nomeCtrl, decoration: InputDecoration(labelText: "Nome")),
+                    SizedBox(height: 10),
+
+                    TextField(controller: emailCtrl, decoration: InputDecoration(labelText: "Email")),
+                    SizedBox(height: 10),
+
+                    TextField(controller: cpfCtrl, decoration: InputDecoration(labelText: "CPF")),
+                    SizedBox(height: 10),
+
+                    TextField(
+                      controller: senhaCtrl,
+                      decoration: InputDecoration(labelText: "Senha"),
+                      obscureText: true,
+                    ),
+                    SizedBox(height: 10),
+
+                    DropdownButtonFormField(
+                      value: cargo.isEmpty ? null : cargo,
+                      decoration: InputDecoration(labelText: "Cargo"),
+                      items: cargos.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+                      onChanged: (v) => setState(() => cargo = v.toString()),
+                    ),
+
+                    SizedBox(height: 10),
+
+                    DropdownButtonFormField(
+                      value: departamento.isEmpty ? null : departamento,
+                      decoration: InputDecoration(labelText: "Departamento"),
+                      items: departamentos.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+                      onChanged: (v) => setState(() => departamento = v.toString()),
+                    ),
+
+                    SizedBox(height: 20),
+
+                    ElevatedButton(
+                      onPressed: salvarFuncionario,
+                      child: Text(funcionarioEditando != null ? "Atualizar" : "Cadastrar"),
+                    )
+                  ]
+                ],
+              ),
             ),
-
-            if (mostrarForm) ...[
-              if (mensagemErro.isNotEmpty)
-                Text(
-                  mensagemErro,
-                  style: TextStyle(color: Colors.red),
-                ),
-
-              SizedBox(height: 12),
-
-              TextField(controller: nomeCtrl, decoration: InputDecoration(labelText: "Nome")),
-              TextField(controller: emailCtrl, decoration: InputDecoration(labelText: "Email")),
-              TextField(controller: cpfCtrl, decoration: InputDecoration(labelText: "CPF")),
-              TextField(controller: senhaCtrl, obscureText: true, decoration: InputDecoration(labelText: "Senha")),
-
-              DropdownButtonFormField(
-                value: cargo.isEmpty ? null : cargo,
-                items: cargos.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                decoration: InputDecoration(labelText: "Cargo"),
-                onChanged: (v) => setState(() => cargo = v.toString()),
-              ),
-
-              DropdownButtonFormField(
-                value: departamento.isEmpty ? null : departamento,
-                items: departamentos.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-                decoration: InputDecoration(labelText: "Departamento"),
-                onChanged: (v) => setState(() => departamento = v.toString()),
-              ),
-
-              SizedBox(height: 16),
-
-              ElevatedButton(
-                onPressed: salvarFuncionario,
-                child: Text(funcionarioEditando != null ? "Atualizar" : "Cadastrar"),
-              ),
-            ],
 
             SizedBox(height: 30),
 
-            Text("Funcionários cadastrados", style: TextStyle(fontSize: 18)),
-            SizedBox(height: 10),
+            /// LISTA DE FUNCIONÁRIOS
+            Text("Funcionários cadastrados",
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+
+            SizedBox(height: 14),
 
             if (funcionarios.isEmpty)
               Text("Nenhum funcionário cadastrado"),
 
-            ...funcionarios.map((f) {
-              return Card(
-                child: ListTile(
-                  title: Text(f["nome"] ?? ""),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            Column(
+              children: funcionarios.map((f) {
+                return Container(
+                  margin: EdgeInsets.only(bottom: 12),
+                  padding: EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: AppTheme.background,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppTheme.border),
+                    boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text("Email: ${f['email']}"),
-                      Text("CPF: ${f['cpf']}"),
-                      Text("Cargo: ${f['cargo']}"),
-                      Text("Departamento: ${f['departamento']}"),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(f["nome"] ?? "",
+                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                            SizedBox(height: 4),
+                            Text("Email: ${f['email']}"),
+                            Text("CPF: ${f['cpf']}"),
+                            Text("Cargo: ${f['cargo']}"),
+                            Text("Departamento: ${f['departamento']}"),
+                          ],
+                        ),
+                      ),
+
+                      Column(
+                        children: [
+                          IconButton(
+                            icon: Icon(Icons.edit, color: AppTheme.primary),
+                            onPressed: () => preencherForm(f),
+                          ),
+                          IconButton(
+                            icon: Icon(Icons.delete, color: AppTheme.danger),
+                            onPressed: () => deletarFuncionario(f["id"].toString()),
+                          ),
+                        ],
+                      )
                     ],
                   ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(icon: Icon(Icons.edit), onPressed: () => preencherForm(f)),
-                      IconButton(
-                          icon: Icon(Icons.delete, color: Colors.red),
-                          onPressed: () => deletarFuncionario(f["id"].toString())),
-                    ],
-                  ),
-                ),
-              );
-            }).toList(),
+                );
+              }).toList(),
+            )
           ],
         ),
       ),

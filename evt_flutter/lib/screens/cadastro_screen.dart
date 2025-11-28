@@ -28,15 +28,13 @@ class _AuthPageState extends State<AuthPage> {
 
     try {
       if (isLogin) {
-        // Login
         final response = await http.post(
-          Uri.parse('http://localhost:8080/login'), // ajuste a URL
+          Uri.parse('http://localhost:8080/login'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({'email': email, 'senha': senha}),
         );
 
         if (response.statusCode == 200) {
-          // Redirecionar ou mostrar mensagem
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Login realizado com sucesso!')),
           );
@@ -44,9 +42,8 @@ class _AuthPageState extends State<AuthPage> {
           throw Exception('Erro no login');
         }
       } else {
-        // Cadastro
         final response = await http.post(
-          Uri.parse('http://localhost:8080/cadastro'), // ajuste a URL
+          Uri.parse('http://localhost:8080/auth'),
           headers: {'Content-Type': 'application/json'},
           body: jsonEncode({
             'nome': nome,
@@ -66,12 +63,10 @@ class _AuthPageState extends State<AuthPage> {
         }
       }
 
-      // Limpar campos
       nomeController.clear();
       emailController.clear();
       senhaController.clear();
       cpfController.clear();
-
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(e.toString())),
@@ -88,44 +83,150 @@ class _AuthPageState extends State<AuthPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF3F4F6), // cor leve de fundo
       body: Center(
         child: Container(
-          width: 400,
-          padding: const EdgeInsets.all(20),
+          width: 420,
+          padding: const EdgeInsets.all(22),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            boxShadow: const [
+              BoxShadow(
+                color: Colors.black12,
+                blurRadius: 12,
+                offset: Offset(0, 4),
+              ),
+            ],
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (!isLogin)
-                TextField(
-                  controller: nomeController,
-                  decoration: const InputDecoration(labelText: 'Nome'),
+              Text(
+                isLogin ? "Entrar" : "Criar Conta",
+                style: const TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFF111827),
                 ),
-              TextField(
-                controller: emailController,
-                decoration: const InputDecoration(labelText: 'Email'),
               ),
-              TextField(
-                controller: senhaController,
-                decoration: const InputDecoration(labelText: 'Senha'),
-                obscureText: true,
-              ),
-              if (!isLogin)
-                TextField(
-                  controller: cpfController,
-                  decoration: const InputDecoration(labelText: 'CPF'),
-                ),
+
               const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: loading ? null : handleSubmit,
-                child: Text(loading ? 'Carregando...' : isLogin ? 'Entrar' : 'Cadastrar'),
+
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (!isLogin) ...[
+                    const Text(
+                      "Nome",
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 14),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: nomeController,
+                      decoration: inputStyle("Digite seu nome"),
+                    ),
+                    const SizedBox(height: 14),
+                  ],
+
+                  const Text(
+                    "Email",
+                    style:
+                        TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: emailController,
+                    decoration: inputStyle("Digite seu email"),
+                  ),
+                  const SizedBox(height: 14),
+
+                  const Text(
+                    "Senha",
+                    style:
+                        TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: senhaController,
+                    decoration: inputStyle("Digite sua senha"),
+                    obscureText: true,
+                  ),
+                  const SizedBox(height: 14),
+
+                  if (!isLogin) ...[
+                    const Text(
+                      "CPF",
+                      style: TextStyle(
+                          fontWeight: FontWeight.w600, fontSize: 14),
+                    ),
+                    const SizedBox(height: 6),
+                    TextField(
+                      controller: cpfController,
+                      decoration: inputStyle("Digite seu CPF"),
+                    ),
+                  ],
+                ],
               ),
+
+              const SizedBox(height: 22),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: loading ? null : handleSubmit,
+                  style: ElevatedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    backgroundColor: const Color(0xFF10B981),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  child: Text(
+                    loading
+                        ? "Carregando..."
+                        : isLogin
+                            ? "Entrar"
+                            : "Cadastrar",
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w700,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
               TextButton(
                 onPressed: toggleMode,
-                child: Text(isLogin ? 'Criar conta' : 'Já tenho conta'),
+                child: Text(
+                  isLogin ? "Criar conta" : "Já tenho conta",
+                  style: const TextStyle(
+                    color: Color(0xFF2563EB),
+                    decoration: TextDecoration.underline,
+                  ),
+                ),
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  InputDecoration inputStyle(String placeholder) {
+    return InputDecoration(
+      hintText: placeholder,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+        borderRadius: BorderRadius.circular(8),
       ),
     );
   }
