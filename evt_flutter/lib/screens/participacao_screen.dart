@@ -1,4 +1,7 @@
+// lib/screens/participacao_screen.dart (Ajustado com Novo Design)
+
 import 'dart:convert';
+import 'package:evt_flutter/widgets/app_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/evento_service.dart';
@@ -14,6 +17,13 @@ class ParticipacaoPage extends StatefulWidget {
 }
 
 class _ParticipacaoPageState extends State<ParticipacaoPage> {
+  // 🎨 CONSTANTES DE ESTILO (Novas Cores)
+  static const Color _primaryColor = Color(0xFF2563EB); // Azul Principal
+  static const Color _backgroundColor = Color(0xFFF3F4F6); // Fundo Cinza Claro
+  static const Color _successColor = Color(0xFF10B981); // Verde
+  static const Color _errorColor = Color(0xFFEF4444); // Vermelho
+
+  // ESTADO E INICIALIZAÇÃO
   List eventos = [];
   dynamic eventoSelecionado;
   List participantes = [];
@@ -34,7 +44,7 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
   }
 
   // ----------------------------
-  // CARREGAMENTOS
+  // CARREGAMENTOS (Lógica mantida)
   // ----------------------------
 
   Future<void> carregarTokenRole() async {
@@ -42,11 +52,13 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
     final token = prefs.getString("token");
 
     if (token != null) {
-      final payload = jsonDecode(
-        utf8.decode(base64.decode(token.split('.')[1])),
-      );
-
-      setState(() => userRole = payload["role"]);
+      final parts = token.split('.');
+      if (parts.length == 3) {
+        final payload = jsonDecode(
+          utf8.decode(base64.decode(base64.normalize(parts[1]))),
+        );
+        setState(() => userRole = payload["role"]);
+      }
     }
   }
 
@@ -55,7 +67,8 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
       final data = await EventoService.getEventos();
       setState(() => eventos = data);
     } catch (e) {
-      setState(() => mensagem = "Erro ao carregar eventos");
+      setState(() => mensagem =
+          "Erro ao carregar eventos: ${e.toString().replaceFirst('Exception: ', '')}");
     }
   }
 
@@ -63,7 +76,9 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
     try {
       final data = await ParticipacaoService.getMeusEventos();
       setState(() => meusEventos = data);
-    } catch (e) {}
+    } catch (e) {
+      // Erro silencioso
+    }
   }
 
   Future<void> carregarParticipantes() async {
@@ -78,12 +93,14 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
       );
 
       setState(() => participantes = data);
-    } catch (e) {}
+    } catch (e) {
+      // Erro silencioso
+    }
   }
 
   Future<void> carregarLocal() async {
     if (eventoSelecionado == null || eventoSelecionado["localId"] == null) {
-      localDetalhes = null;
+      setState(() => localDetalhes = null);
       return;
     }
 
@@ -91,19 +108,19 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
         localDetalhes = {"nome": "Carregando...", "endereco": {}});
 
     try {
-      final local = await LocalService.getLocalById(eventoSelecionado["localId"]);
+      final local = await LocalService.getLocalById(eventoSelecionado["localId"] as int);
 
       setState(() => localDetalhes = local);
     } catch (e) {
       setState(() => localDetalhes = {
-            "nome": "Erro ao carregar local",
+            "nome": "Erro ao carregar local: ${e.toString().replaceFirst('Exception: ', '')}",
             "endereco": {}
           });
     }
   }
 
   // ----------------------------
-  // AÇÕES
+  // AÇÕES (Lógica mantida)
   // ----------------------------
 
   Future<void> participar(String titulo) async {
@@ -116,7 +133,7 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
       await ParticipacaoService.participar(titulo);
 
       setState(() {
-        mensagem = "Participação registrada!";
+        mensagem = "Participação registrada com sucesso!";
         mensagemTipo = "success";
       });
 
@@ -124,236 +141,371 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
       await carregarMeusEventos();
     } catch (e) {
       setState(() {
-        mensagem = "Erro ao participar.";
+        mensagem =
+            e.toString().replaceFirst('Exception: ', 'Erro ao participar: ');
         mensagemTipo = "error";
       });
     }
   }
 
   // ----------------------------
-  // FORMATADORES
+  // FORMATADORES (Mantidos e com ajustes de estilo)
   // ----------------------------
 
   String formatarData(String? data) {
     if (data == null) return "Sem data";
     final d = DateTime.parse(data);
-    return "${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} ${d.hour}:${d.minute.toString().padLeft(2, '0')}";
+    return "${d.day.toString().padLeft(2, '0')}/${d.month.toString().padLeft(2, '0')}/${d.year} ${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}";
   }
 
   Widget formatarEndereco(dynamic local) {
     if (local == null || local["endereco"] == null) {
-      return Text("Local não encontrado ou remoto");
+      return Text(local?["nome"] ?? "Local não encontrado ou remoto",
+          style: TextStyle(color: Colors.black87));
     }
 
     final e = local["endereco"];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text("Nome: ${local["nome"]}"),
-        Text("Endereço: ${e["rua"]}, ${e["numero"] ?? 'S/N'}"),
-        Text("Bairro: ${e["bairro"]}"),
-        Text("Cidade: ${e["cidade"]} - ${e["estado"]}"),
-        Text("CEP: ${e["cep"]}"),
+        Text("Nome: ${local["nome"]}", style: TextStyle(color: Colors.black87)),
+        Text("Endereço: ${e["rua"]}, ${e["numero"] ?? 'S/N'}", style: TextStyle(color: Colors.black87)),
+        Text("Bairro: ${e["bairro"]}", style: TextStyle(color: Colors.black87)),
+        Text("Cidade: ${e["cidade"]} - ${e["estado"]}", style: TextStyle(color: Colors.black87)),
+        Text("CEP: ${e["cep"]}", style: TextStyle(color: Colors.black87)),
       ],
     );
   }
 
   // ----------------------------
-  // UI
+  // UI (Ajustada)
   // ----------------------------
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar:  AppHeader(),
+    return AppLayout(
+      userRole: userRole ?? "VISITANTE",
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
-        child: Container(
-          padding: EdgeInsets.all(20),
-          constraints: BoxConstraints(maxWidth: 600),
-          margin: EdgeInsets.symmetric(horizontal: 8),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 12,
-                offset: Offset(0, 4),
-              ),
-            ],
-          ),
-
-          // COLUNA PRINCIPAL
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ----------------------------
-              // TÍTULO
-              // ----------------------------
-              Center(
-                child: Text(
-                  "Participar de Eventos",
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.black87,
-                  ),
+        child: Center(
+          child: Container(
+            padding: EdgeInsets.all(24), // Aumento de padding
+            constraints: BoxConstraints(maxWidth: 600),
+            margin: EdgeInsets.symmetric(horizontal: 8),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16), // Aumento de raio
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.08), // Sombreamento mais forte
+                  blurRadius: 16, // Aumento de blur
+                  offset: Offset(0, 6),
                 ),
-              ),
+              ],
+            ),
 
-              SizedBox(height: 20),
-
-              // ----------------------------
-              // DROPDOWN EVENTO
-              // ----------------------------
-              DropdownButtonFormField(
-                decoration: InputDecoration(
-                  labelText: "Selecione um evento",
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                ),
-                items: eventos
-                    .map(
-                      (ev) => DropdownMenuItem(
-                        value: ev,
-                        child: Text(
-                          "${ev["titulo"]} — ${formatarData(ev["data"])}",
-                        ),
-                      ),
-                    )
-                    .toList(),
-                onChanged: (value) {
-                  setState(() => eventoSelecionado = value);
-                  carregarParticipantes();
-                  carregarLocal();
-                },
-              ),
-
-              // ----------------------------
-              // MENSAGEM
-              // ----------------------------
-              if (mensagem.isNotEmpty) ...[
-                SizedBox(height: 14),
-                Container(
-                  padding: EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: mensagemTipo == "error"
-                        ? Colors.red[100]
-                        : Colors.green[100],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
+            // COLUNA PRINCIPAL
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // TÍTULO
+                Center(
                   child: Text(
-                    mensagem,
+                    "Participar de Eventos",
                     style: TextStyle(
-                      color: Colors.black87,
-                      fontWeight: FontWeight.w600,
+                      fontSize: 24, // Aumento de fonte
+                      fontWeight: FontWeight.w800, // Mais negrito
+                      color: _primaryColor, // Usando a cor primária
                     ),
                   ),
                 ),
-              ],
 
-              // ----------------------------
-              // BOTÃO
-              // ----------------------------
-              if (eventoSelecionado != null) ...[
-                SizedBox(height: 14),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                SizedBox(height: 30), // Mais espaço
+
+                // DROPDOWN EVENTO
+                Text(
+                  "Selecione o Evento:",
+                  style: TextStyle(
+                      fontSize: 16, fontWeight: FontWeight.w600, color: Colors.black87),
+                ),
+                SizedBox(height: 8),
+                DropdownButtonFormField(
+                  value: eventoSelecionado,
+                  decoration: InputDecoration(
+                    contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
+                    labelText: "Evento",
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12), // Raio arredondado
+                      borderSide: BorderSide(color: Colors.grey.shade300),
+                    ),
+                    focusedBorder: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: _primaryColor, width: 2),
+                    ),
+                  ),
+                  items: eventos
+                      .map(
+                        (ev) => DropdownMenuItem(
+                          value: ev,
+                          child: Text(
+                            "${ev["titulo"]} — ${formatarData(ev["data"])}",
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                      )
+                      .toList(),
+                  onChanged: (value) async {
+                    setState(() => eventoSelecionado = value);
+                    await carregarParticipantes();
+                    await carregarLocal();
+                  },
+                ),
+
+                // MENSAGEM
+                if (mensagem.isNotEmpty) ...[
+                  SizedBox(height: 18),
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(14),
+                    decoration: BoxDecoration(
+                      color: mensagemTipo == "error"
+                          ? _errorColor.withOpacity(0.15)
+                          : _successColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: mensagemTipo == "error" ? _errorColor : _successColor,
+                        width: 1.5,
                       ),
                     ),
-                    onPressed: () =>
-                        participar(eventoSelecionado["titulo"].toString()),
                     child: Text(
-                      "Participar",
-                      style: TextStyle(fontSize: 16),
+                      mensagem,
+                      style: TextStyle(
+                        color: mensagemTipo == "error" ? _errorColor : _successColor,
+                        fontWeight: FontWeight.w700,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
-                ),
-              ],
-
-              // ----------------------------
-              // DETALHES DO EVENTO
-              // ----------------------------
-              if (eventoSelecionado != null) ...[
-                SizedBox(height: 30),
-                Text(
-                  "Detalhes do Evento",
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                SizedBox(height: 10),
-
-                Text("Descrição: ${eventoSelecionado["descricao"]}"),
-                Text("Data/Hora: ${formatarData(eventoSelecionado["data"])}"),
-                Text("Tipo: ${eventoSelecionado["tipoEvento"]}"),
-                Text("Estado: ${eventoSelecionado["estadoEvento"]}"),
-                Text("Vagas: ${eventoSelecionado["vagas"]}"),
-
-                if (eventoSelecionado["tipoEvento"] == "PRESENCIAL") ...[
-                  SizedBox(height: 10),
-                  formatarEndereco(localDetalhes),
                 ],
-              ],
 
-              // ----------------------------
-              // PARTICIPANTES
-              // ----------------------------
-              if (eventoSelecionado != null && userRole != "VISITANTE") ...[
-                SizedBox(height: 30),
+                // BOTÃO PARTICIPAR
+                if (eventoSelecionado != null) ...[
+                  SizedBox(height: 20),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: _primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 4,
+                      ),
+                      onPressed: () =>
+                          participar(eventoSelecionado["titulo"].toString()),
+                      child: Text(
+                        "Confirmar Participação",
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                      ),
+                    ),
+                  ),
+                ],
+
+                // DETALHES DO EVENTO
+                if (eventoSelecionado != null) ...[
+                  SizedBox(height: 40),
+                  Text(
+                    "Detalhes do Evento Selecionado",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: _primaryColor,
+                    ),
+                  ),
+                  Divider(height: 20, thickness: 1, color: Colors.grey.shade300),
+
+                  _buildDetailRow("Descrição:", eventoSelecionado["descricao"] ?? 'N/A'),
+                  _buildDetailRow("Data/Hora:", formatarData(eventoSelecionado["data"])),
+                  _buildDetailRow("Tipo:", eventoSelecionado["tipoEvento"] ?? 'N/A'),
+                  _buildDetailRow("Estado:", eventoSelecionado["estadoEvento"] ?? 'N/A'),
+                  _buildDetailRow("Vagas:", eventoSelecionado["vagas"]?.toString() ?? '0'),
+
+
+                  if (eventoSelecionado["tipoEvento"] == "PRESENCIAL" || eventoSelecionado["tipoEvento"] == "HIBRIDO") ...[
+                    SizedBox(height: 20),
+                    Text(
+                      "Local",
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.black87,
+                      ),
+                    ),
+                    SizedBox(height: 8),
+                    formatarEndereco(localDetalhes),
+                  ],
+                ],
+
+                // PARTICIPANTES
+                if (eventoSelecionado != null && userRole != "VISITANTE") ...[
+                  SizedBox(height: 40),
+                  Text(
+                    "Quem Vai Participar",
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: _primaryColor,
+                    ),
+                  ),
+                  Divider(height: 20, thickness: 1, color: Colors.grey.shade300),
+
+                  if (participantes.isEmpty)
+                    Text("Nenhum participante registrado ainda.", style: TextStyle(color: Colors.black54)),
+
+                  ListView.builder(
+                    physics: NeverScrollableScrollPhysics(),
+                    shrinkWrap: true,
+                    itemCount: participantes.length,
+                    itemBuilder: (context, index) {
+                      final p = participantes[index];
+                      return _buildParticipantTile(
+                        p["nome"] ?? p["email"] ?? "Usuário Desconhecido",
+                        p["email"],
+                      );
+                    },
+                  ),
+                ],
+
+                // MEUS EVENTOS
+                SizedBox(height: 40),
                 Text(
-                  "Participantes",
+                  "Seus Eventos Confirmados",
                   style: TextStyle(
-                    fontSize: 18,
+                    fontSize: 20,
                     fontWeight: FontWeight.w700,
+                    color: _primaryColor,
                   ),
                 ),
-                SizedBox(height: 10),
+                Divider(height: 20, thickness: 1, color: Colors.grey.shade300),
 
-                if (participantes.isEmpty)
-                  Text("Nenhum participante ainda."),
+                if (meusEventos.isEmpty)
+                  Text("Você não possui participações confirmadas em eventos.", style: TextStyle(color: Colors.black54)),
 
-                ...participantes.map(
-                  (p) => ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(p["nome"] ?? p["email"] ?? "Usuário"),
-                  ),
+                ListView.builder(
+                  physics: NeverScrollableScrollPhysics(),
+                  shrinkWrap: true,
+                  itemCount: meusEventos.length,
+                  itemBuilder: (context, index) {
+                    final ev = meusEventos[index];
+                    return _buildMyEventTile(
+                      ev["titulo"],
+                      formatarData(ev["data"]),
+                    );
+                  },
                 ),
               ],
-
-              // ----------------------------
-              // MEUS EVENTOS
-              // ----------------------------
-              SizedBox(height: 30),
-              Text(
-                "Meus Eventos",
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-
-              if (meusEventos.isEmpty)
-                Text("Você não participa de nenhum evento."),
-
-              ...meusEventos.map(
-                (ev) => ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(ev["titulo"]),
-                  subtitle: Text(formatarData(ev["data"])),
-                ),
-              ),
-            ],
+            ),
           ),
         ),
+      ),
+    );
+  }
+
+  // Novo Widget auxiliar para detalhes (consistente com EventosPage)
+  Widget _buildDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: Colors.black87,
+              fontSize: 15,
+            ),
+          ),
+          SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(color: Colors.black87, fontSize: 15),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Novo Widget auxiliar para lista de participantes
+  Widget _buildParticipantTile(String nome, String? email) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.person_outline, size: 20, color: _primaryColor),
+          SizedBox(width: 10),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                nome,
+                style: TextStyle(
+                    fontWeight: FontWeight.w600, color: Colors.black87),
+              ),
+              if (email != null)
+                Text(
+                  email,
+                  style: TextStyle(color: Colors.black54, fontSize: 13),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Novo Widget auxiliar para lista de Meus Eventos
+  Widget _buildMyEventTile(String titulo, String data) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: _primaryColor.withOpacity(0.05),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: _primaryColor.withOpacity(0.2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            titulo,
+            style: TextStyle(
+                fontWeight: FontWeight.w700,
+                fontSize: 16,
+                color: _primaryColor),
+          ),
+          SizedBox(height: 4),
+          Row(
+            children: [
+              Icon(Icons.calendar_today, size: 14, color: Colors.black54),
+              SizedBox(width: 5),
+              Text(
+                data,
+                style: TextStyle(color: Colors.black54, fontSize: 13),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }

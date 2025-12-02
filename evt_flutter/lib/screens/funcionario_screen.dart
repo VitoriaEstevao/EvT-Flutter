@@ -1,19 +1,31 @@
-import 'package:flutter/material.dart';
-import '../services/funcionario_service.dart';
-import '../theme/app_theme.dart';
-import '../widgets/app_header.dart';
+// funcionarios_screen.dart (Design Atualizado)
 
-class FuncionariosPage extends StatefulWidget {
-  const FuncionariosPage({Key? key}) : super(key: key);
+import 'dart:convert';
+import 'package:evt_flutter/widgets/app_layout.dart';
+import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:http/http.dart'; // Para usar o objeto Response
+import '../services/funcionario_service.dart';
+// Note: 'AppHeader' foi mantido, mas 'AppTheme' foi removido para usar os estilos inline da UsuarioScreen
+import '../widgets/app_header.dart'; // Mantido, assumindo que você ainda quer usar
+
+class FuncionariosScreen extends StatefulWidget {
+  // Renomeado para seguir o padrão 'Screen'
+  const FuncionariosScreen({Key? key}) : super(key: key);
 
   @override
-  _FuncionariosPageState createState() => _FuncionariosPageState();
+  // ignore: library_private_types_in_public_api
+  _FuncionariosScreenState createState() => _FuncionariosScreenState();
 }
 
-class _FuncionariosPageState extends State<FuncionariosPage> {
+class _FuncionariosScreenState extends State<FuncionariosScreen> {
+  // === ESTADO DA TELA ===
   List<dynamic> funcionarios = [];
-  Map<String, dynamic>? funcionarioEditando;
-
+  Map<String, dynamic>? funcionarioEditando; // Funcionário atualmente em edição
+  bool mostrarForm = false; // Estado para mostrar/esconder o formulário
+  bool loading = false; // Estado de carregamento
+  String? userRole;
+  // Controladores de Formulário
   final TextEditingController nomeCtrl = TextEditingController();
   final TextEditingController emailCtrl = TextEditingController();
   final TextEditingController cpfCtrl = TextEditingController();
@@ -22,256 +34,456 @@ class _FuncionariosPageState extends State<FuncionariosPage> {
   String cargo = "";
   String departamento = "";
 
-  String mensagemErro = "";
-  Map<String, dynamic> erros = {};
-  bool mostrarForm = false;
+  // Estado de Mensagens de Alerta (Sucesso ou Erro - Unificado como em UsuarioScreen)
+  String mensagemAlerta = "";
+  bool isError = false; // Indica se mensagemAlerta é um erro
 
+  // Dados Fixos
   final cargos = [
-    'GERENTE',
-    'ANALISTA',
-    'ESTAGIARIO',
-    'COORDENADOR',
-    'APRENDIZ',
-    'VISITANTE'
+    'GERENTE', 'ANALISTA', 'ESTAGIARIO', 'COORDENADOR', 'APRENDIZ', 'VISITANTE'
   ];
-
   final departamentos = [
-    'FINANCEIRO',
-    'TI',
-    'RH',
-    'JURIDICO',
-    'MARKETING'
+    'FINANCEIRO', 'TI', 'RH', 'JURIDICO', 'MARKETING'
   ];
 
   @override
   void initState() {
     super.initState();
+    carregarTokenRole();
     carregarFuncionarios();
   }
 
+  @override
+  void dispose() {
+    nomeCtrl.dispose();
+    emailCtrl.dispose();
+    cpfCtrl.dispose();
+    senhaCtrl.dispose();
+    super.dispose();
+  }
+
+  // Função auxiliar para processar e exibir erros do backend
+  Future<void> _processarErros(Object error) async {
+    String errorMessage = "Erro de conexão com o servidor.";
+
+    if (error is Response) {
+      try {
+        final errorData = jsonDecode(error.body);
+        
+        // Verifica se há uma mensagem principal ou erros detalhados de campo
+        if (errorData['mensagem'] != null) {
+          errorMessage = errorData['mensagem'].toString();
+        } else if (errorData['erros'] is Map) {
+           // Pega o primeiro erro detalhado de campo
+           final fieldErrors = errorData['erros'] as Map<String, dynamic>;
+           if (fieldErrors.isNotEmpty) {
+             errorMessage = fieldErrors.values.first.toString();
+           }
+        } else {
+           errorMessage = "Ocorreu um erro (${error.statusCode}). Consulte o console.";
+        }
+      } catch (_) {
+        // Se o body não for JSON, usa a mensagem genérica
+        errorMessage = "Ocorreu um erro (${error.statusCode}). Consulte o console.";
+      }
+    } else if (error is Exception) {
+      errorMessage = error.toString().replaceFirst('Exception: ', '');
+    }
+
+    setState(() {
+      mensagemAlerta = errorMessage;
+      isError = true;
+    });
+  }
+
+  // Limpar formulário e estado de edição
+  void limparFormulario({bool manterVisibilidade = false}) {
+    funcionarioEditando = null;
+    nomeCtrl.clear();
+    emailCtrl.clear();
+    cpfCtrl.clear();
+    senhaCtrl.clear();
+    cargo = "";
+    departamento = "";
+    // Limpa apenas o erro se o form for fechado
+    if(!manterVisibilidade) {
+      setState(() {
+        mostrarForm = false;
+        mensagemAlerta = "";
+        isError = false;
+      });
+    }
+  }
+
+  // --- LÓGICA DE DADOS ---
+
+  Future<void> carregarTokenRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token");
+
+    if (token != null) {
+      final parts = token.split('.');
+      if (parts.length == 3) {
+        final payload = jsonDecode(
+          utf8.decode(base64.decode(base64.normalize(parts[1]))),
+        );
+        // ⚠️ Use setState para atualizar o userRole e reconstruir o widget
+        setState(() => userRole = payload["role"]);
+      }
+    }
+  }
+
   Future<void> carregarFuncionarios() async {
+    setState(() {
+      mensagemAlerta = "";
+      isError = false;
+      loading = true; // Adicionado loading na lista também
+    });
     try {
       final data = await FuncionarioService.getFuncionarios();
       setState(() => funcionarios = data);
     } catch (e) {
-      setState(() => mensagemErro = "Erro ao carregar funcionários");
+      await _processarErros(e);
+    } finally {
+      setState(() => loading = false);
     }
   }
 
   void preencherForm(Map<String, dynamic> f) {
+    limparFormulario(manterVisibilidade: true);
+    
     funcionarioEditando = f;
     nomeCtrl.text = f['nome'] ?? "";
     emailCtrl.text = f['email'] ?? "";
     cpfCtrl.text = f['cpf'] ?? "";
-    senhaCtrl.text = "";
+    senhaCtrl.text = ""; // Senha nunca deve ser preenchida
     cargo = f['cargo'] ?? "";
     departamento = f['departamento'] ?? "";
+
     setState(() => mostrarForm = true);
   }
 
   Future<void> salvarFuncionario() async {
     setState(() {
-      mensagemErro = "";
-      erros = {};
+      loading = true;
+      mensagemAlerta = "";
+      isError = false;
     });
+    
+    // Apenas envia a senha se estiver no modo de criação OU se o campo não estiver vazio na edição.
+    String? senhaParaEnviar = senhaCtrl.text.isNotEmpty ? senhaCtrl.text : null;
+    if (funcionarioEditando != null && senhaCtrl.text.isEmpty) {
+        senhaParaEnviar = null; // Não envia a senha se for edição e o campo estiver vazio
+    }
+    
+    // Validação básica de campos obrigatórios no cadastro
+    if (funcionarioEditando == null) {
+        if (nomeCtrl.text.isEmpty || emailCtrl.text.isEmpty || cpfCtrl.text.isEmpty || senhaParaEnviar == null || cargo.isEmpty || departamento.isEmpty) {
+            setState(() {
+                mensagemAlerta = "Todos os campos são obrigatórios para o cadastro.";
+                isError = true;
+                loading = false;
+            });
+            return;
+        }
+    }
+
 
     final body = {
       "nome": nomeCtrl.text,
       "email": emailCtrl.text,
       "cpf": cpfCtrl.text,
-      "senha": senhaCtrl.text,
-      "cargo": cargo,
-      "departamento": departamento,
+      "senha": senhaParaEnviar,
+      "cargo": cargo.isEmpty ? null : cargo,
+      "departamento": departamento.isEmpty ? null : departamento,
     };
+    
+    // Remove chaves nulas do body (especialmente a senha)
+    body.removeWhere((key, value) => value == null);
 
     try {
       if (funcionarioEditando != null) {
+        final id = funcionarioEditando!["id"]; 
+        if (id == null) throw Exception("ID do funcionário não encontrado para edição.");
+        
         await FuncionarioService.editarFuncionario(
-          funcionarioEditando!["id"].toString(),
+          id.toString(),
           body,
         );
+        setState(() {
+          mensagemAlerta = "Funcionário atualizado com sucesso!";
+          isError = false;
+        });
       } else {
         await FuncionarioService.criarFuncionario(body);
+        setState(() {
+          mensagemAlerta = "Funcionário cadastrado com sucesso!";
+          isError = false;
+        });
       }
 
       await carregarFuncionarios();
+      limparFormulario();
+      setState(() => mostrarForm = false);
 
-      setState(() {
-        funcionarioEditando = null;
-        nomeCtrl.clear();
-        emailCtrl.clear();
-        cpfCtrl.clear();
-        senhaCtrl.clear();
-        cargo = "";
-        departamento = "";
-        mostrarForm = false;
-      });
     } catch (e) {
-      setState(() => mensagemErro = "Erro ao salvar funcionário");
+      await _processarErros(e);
+    } finally {
+      setState(() => loading = false);
     }
   }
 
-  Future<void> deletarFuncionario(String id) async {
+  Future<void> deletarFuncionario(int id) async {
+    setState(() {
+      mensagemAlerta = "";
+      isError = false;
+    });
     try {
-      await FuncionarioService.deletarFuncionario(id);
+      await FuncionarioService.deletarFuncionario(id.toString());
       await carregarFuncionarios();
+      setState(() {
+        mensagemAlerta = "Funcionário deletado com sucesso!";
+        isError = false;
+      });
     } catch (e) {
-      setState(() => mensagemErro = "Erro ao deletar funcionário");
+      await _processarErros(e);
     }
+  }
+
+  // --- WIDGETS DE ESTILO ---
+
+  // Função para padronizar o estilo do Input (replicado da UsuarioScreen)
+  InputDecoration inputStyle(String label) {
+    return InputDecoration(
+      labelText: label,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
+      ),
+    );
+  }
+
+  // Formulário de Cadastro/Edição (Replicado e Adaptado para Funcionário)
+  Widget buildForm() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        children: [
+          // Mensagem de Alerta (Sucesso ou Erro)
+          if (mensagemAlerta.isNotEmpty && (mostrarForm || isError))
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 15),
+              decoration: BoxDecoration(
+                color: isError ? Colors.red.shade100 : Colors.green.shade100,
+                border: Border.all(color: isError ? Colors.red.shade300 : Colors.green.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                mensagemAlerta,
+                style: TextStyle(color: isError ? Colors.red.shade900 : Colors.green.shade900),
+                textAlign: TextAlign.center,
+              ),
+            ),
+            
+          TextField(controller: nomeCtrl, decoration: inputStyle("Nome")),
+          const SizedBox(height: 10),
+          TextField(controller: emailCtrl, decoration: inputStyle("Email")),
+          const SizedBox(height: 10),
+          TextField(controller: cpfCtrl, decoration: inputStyle("CPF")),
+          const SizedBox(height: 10),
+          TextField(
+            controller: senhaCtrl,
+            decoration: inputStyle(funcionarioEditando != null ? "Nova Senha (Opcional)" : "Senha"),
+            obscureText: true,
+          ),
+          const SizedBox(height: 10),
+          
+          // Campos Adicionais de Funcionário
+          DropdownButtonFormField<String>(
+            value: cargo.isEmpty ? null : cargo,
+            decoration: inputStyle("Cargo"),
+            items: cargos.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
+            onChanged: (v) => setState(() => cargo = v.toString()),
+          ),
+          const SizedBox(height: 10),
+
+          DropdownButtonFormField<String>(
+            value: departamento.isEmpty ? null : departamento,
+            decoration: inputStyle("Departamento"),
+            items: departamentos.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
+            onChanged: (v) => setState(() => departamento = v.toString()),
+          ),
+          const SizedBox(height: 20),
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: loading ? null : salvarFuncionario,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                backgroundColor: funcionarioEditando != null ? const Color(0xFF2563EB) : Colors.green,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: loading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                    )
+                  : Text(
+                      funcionarioEditando != null ? "Atualizar" : "Cadastrar",
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
+                    ),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  // Card de Listagem (Replicado e Adaptado para Funcionário)
+  Widget buildCard(dynamic funcionario) {
+    return Card(
+      elevation: 3,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        title: Text(
+          funcionario["nome"] ?? "N/A",
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Email: ${funcionario["email"] ?? 'N/A'}"),
+            Text("CPF: ${funcionario["cpf"] ?? 'N/A'}"),
+            Text("Cargo: ${funcionario["cargo"] ?? 'N/A'}"),
+            Text("Departamento: ${funcionario["departamento"] ?? 'N/A'}"),
+          ],
+        ),
+        isThreeLine: true,
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit, color: Color(0xFF2563EB)),
+              onPressed: () => preencherForm(funcionario),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              // O ID do funcionário deve ser convertido para int, se for o caso
+              onPressed: () => deletarFuncionario(funcionario["id"] as int), 
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar:  AppHeader(),
-
+    return AppLayout(
+      userRole: userRole ?? "VISITANTE",
       body: SingleChildScrollView(
-        padding: EdgeInsets.all(20),
+        padding: const EdgeInsets.all(20),
         child: Column(
           children: [
+            // Header + botão expandir (Replicado da UsuarioScreen)
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  funcionarioEditando != null ? "Editar Funcionário" : "Cadastrar Funcionário",
+                  style: const TextStyle(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                ElevatedButton.icon(
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: mostrarForm ? Colors.grey : const Color(0xFF2563EB),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                  onPressed: () {
+                    if (mostrarForm) {
+                      limparFormulario();
+                    }else {
+                      limparFormulario(manterVisibilidade: true);
+                      setState(() => mostrarForm = !mostrarForm);
+                    }
+                  },
+                  icon: Icon(
+                    mostrarForm ? Icons.close : Icons.add,
+                    color: Colors.white,
+                  ),
+                  label: Text(
+                    mostrarForm ? "Fechar" : "Novo Funcionário",
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                )
+              ],
+            ),
 
-            /// CARD DO FORMULÁRIO
-            Container(
-              padding: EdgeInsets.all(22),
-              decoration: BoxDecoration(
-                color: AppTheme.card,
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(color: AppTheme.border),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black12,
-                    blurRadius: 8,
-                    offset: Offset(0, 4),
-                  )
-                ],
+            const SizedBox(height: 20),
+
+            if (mostrarForm) buildForm(),
+
+            const SizedBox(height: 30),
+
+            // Mensagem de Alerta (para operações de delete ou falha geral)
+            if (mensagemAlerta.isNotEmpty && !mostrarForm)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 15),
+                decoration: BoxDecoration(
+                  color: isError ? Colors.red.shade100 : Colors.green.shade100,
+                  border: Border.all(color: isError ? Colors.red.shade300 : Colors.green.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  mensagemAlerta,
+                  style: TextStyle(color: isError ? Colors.red.shade900 : Colors.green.shade900),
+                  textAlign: TextAlign.center,
+                ),
               ),
 
-              child: Column(
-                children: [
-
-                  /// CABEÇALHO
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        funcionarioEditando != null
-                            ? "Atualizar Funcionário"
-                            : "Cadastro de Funcionário",
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-                      ),
-                      TextButton(
-                        onPressed: () => setState(() => mostrarForm = !mostrarForm),
-                        child: Text(
-                          mostrarForm ? "Fechar" : "Expandir",
-                          style: TextStyle(color: AppTheme.primary),
-                        ),
-                      )
-                    ],
-                  ),
-
-                  if (mostrarForm) ...[
-                    SizedBox(height: 14),
-
-                    TextField(controller: nomeCtrl, decoration: InputDecoration(labelText: "Nome")),
-                    SizedBox(height: 10),
-
-                    TextField(controller: emailCtrl, decoration: InputDecoration(labelText: "Email")),
-                    SizedBox(height: 10),
-
-                    TextField(controller: cpfCtrl, decoration: InputDecoration(labelText: "CPF")),
-                    SizedBox(height: 10),
-
-                    TextField(
-                      controller: senhaCtrl,
-                      decoration: InputDecoration(labelText: "Senha"),
-                      obscureText: true,
-                    ),
-                    SizedBox(height: 10),
-
-                    DropdownButtonFormField(
-                      value: cargo.isEmpty ? null : cargo,
-                      decoration: InputDecoration(labelText: "Cargo"),
-                      items: cargos.map((c) => DropdownMenuItem(value: c, child: Text(c))).toList(),
-                      onChanged: (v) => setState(() => cargo = v.toString()),
-                    ),
-
-                    SizedBox(height: 10),
-
-                    DropdownButtonFormField(
-                      value: departamento.isEmpty ? null : departamento,
-                      decoration: InputDecoration(labelText: "Departamento"),
-                      items: departamentos.map((d) => DropdownMenuItem(value: d, child: Text(d))).toList(),
-                      onChanged: (v) => setState(() => departamento = v.toString()),
-                    ),
-
-                    SizedBox(height: 20),
-
-                    ElevatedButton(
-                      onPressed: salvarFuncionario,
-                      child: Text(funcionarioEditando != null ? "Atualizar" : "Cadastrar"),
-                    )
-                  ]
-                ],
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Funcionários Cadastrados",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               ),
             ),
 
-            SizedBox(height: 30),
+            const SizedBox(height: 14),
 
-            /// LISTA DE FUNCIONÁRIOS
-            Text("Funcionários cadastrados",
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+            if (loading)
+                const Center(child: CircularProgressIndicator()),
+            
+            if (!loading && funcionarios.isEmpty)
+              const Text("Nenhum funcionário cadastrado", style: TextStyle(color: Colors.grey)),
 
-            SizedBox(height: 14),
-
-            if (funcionarios.isEmpty)
-              Text("Nenhum funcionário cadastrado"),
-
-            Column(
-              children: funcionarios.map((f) {
-                return Container(
-                  margin: EdgeInsets.only(bottom: 12),
-                  padding: EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: AppTheme.background,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.border),
-                    boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(f["nome"] ?? "",
-                                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                            SizedBox(height: 4),
-                            Text("Email: ${f['email']}"),
-                            Text("CPF: ${f['cpf']}"),
-                            Text("Cargo: ${f['cargo']}"),
-                            Text("Departamento: ${f['departamento']}"),
-                          ],
-                        ),
-                      ),
-
-                      Column(
-                        children: [
-                          IconButton(
-                            icon: Icon(Icons.edit, color: AppTheme.primary),
-                            onPressed: () => preencherForm(f),
-                          ),
-                          IconButton(
-                            icon: Icon(Icons.delete, color: AppTheme.danger),
-                            onPressed: () => deletarFuncionario(f["id"].toString()),
-                          ),
-                        ],
-                      )
-                    ],
-                  ),
-                );
-              }).toList(),
-            )
+            if (!loading)
+              ...funcionarios.map(buildCard).toList(),
           ],
         ),
       ),

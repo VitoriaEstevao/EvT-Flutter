@@ -1,47 +1,93 @@
+// lib/screens/evento_screen.dart
+import 'package:evt_flutter/widgets/app_layout.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/intl.dart';
+import 'dart:convert'; // 🎯 Adicionar para jsonDecode, utf8 e base64
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/evento_service.dart';
 import '../services/local_service.dart';
-import '../services/usuarios_service.dart';
-import '../widgets/app_header.dart';
+import '../services/usuarios_service.dart'; // Importação do serviço de Usuários
+import '../widgets/app_header.dart'; // Assumindo que AppHeader está disponível
 
-
-class EventoScreen extends StatefulWidget {
-  const EventoScreen({super.key});
+class EventosPage extends StatefulWidget {
+  const EventosPage({Key? key}) : super(key: key);
 
   @override
-  State<EventoScreen> createState() => _EventoScreenState();
+  // ignore: library_private_types_in_public_api
+  _EventosPageState createState() => _EventosPageState();
 }
 
-class _EventoScreenState extends State<EventoScreen> {
+class _EventosPageState extends State<EventosPage> {
+  // === ESTADO E CONTROLADORES ===
   List<dynamic> eventos = [];
-  List<dynamic> locais = [];
-  List<dynamic> palestrantes = [];
-
-  bool mostrarForm = false;
+  List<dynamic> locais = []; // Locais disponíveis
+  List<dynamic> palestrantes = []; // Usuários disponíveis
   Map<String, dynamic>? eventoEditando;
+  String? userRole;
 
-  final tituloCtrl = TextEditingController();
-  final descricaoCtrl = TextEditingController();
-  final vagasCtrl = TextEditingController();
+  final TextEditingController tituloCtrl = TextEditingController();
+  final TextEditingController descricaoCtrl = TextEditingController();
+  final TextEditingController vagasCtrl = TextEditingController(text: '0');
 
   DateTime? dataEvento;
-  String tipoEvento = "REMOTO";
+  String tipoEvento = "PRESENCIAL";
   int? localId;
   int? palestranteId;
 
-  String mensagemErro = "";
+  String mensagemAlerta = ""; // Alterado para seguir o nome de UsuarioScreen
+  bool isError = false; // Adicionado para seguir o nome de UsuarioScreen
+  bool loading = false; // Adicionado para seguir o nome de UsuarioScreen
+  bool mostrarForm = false;
+
+  final tiposEvento = [
+    'PRESENCIAL',
+    'REMOTO',
+    'HIBRIDO',
+  ];
+
 
   @override
   void initState() {
     super.initState();
+    carregarTokenRole();
     carregarDados();
   }
 
+  @override
+  void dispose() {
+    tituloCtrl.dispose();
+    descricaoCtrl.dispose();
+    vagasCtrl.dispose();
+    super.dispose();
+  }
+
+  // === LÓGICA DE DADOS ===
+
+  Future<void> carregarTokenRole() async {
+    final prefs = await SharedPreferences.getInstance();
+    final token = prefs.getString("token");
+
+    if (token != null) {
+      final parts = token.split('.');
+      if (parts.length == 3) {
+        final payload = jsonDecode(
+          utf8.decode(base64.decode(base64.normalize(parts[1]))),
+        );
+        // ⚠️ Use setState para atualizar o userRole e reconstruir o widget
+        setState(() => userRole = payload["role"]);
+      }
+    }
+  }
+
   Future<void> carregarDados() async {
+    setState(() {
+      mensagemAlerta = "";
+      isError = false;
+    });
     try {
       final e = await EventoService.getEventos();
       final l = await LocalService.getLocais();
-      final p = await UsuariosService.getUsuarios();
+      final p = await UsuarioService.getUsuarios();
 
       setState(() {
         eventos = e;
@@ -49,60 +95,148 @@ class _EventoScreenState extends State<EventoScreen> {
         palestrantes = p;
       });
     } catch (e) {
-      setState(() => mensagemErro = "Erro ao carregar dados");
+      setState(() {
+        mensagemAlerta = "Erro ao carregar dados: ${e.toString().replaceFirst('Exception: ', '')}";
+        isError = true;
+      });
     }
   }
 
-  void preencherForm(dynamic ev) {
-    eventoEditando = ev;
-
-    tituloCtrl.text = ev["titulo"] ?? "";
-    descricaoCtrl.text = ev["descricao"] ?? "";
-    vagasCtrl.text = ev["vagas"]?.toString() ?? "";
-    tipoEvento = ev["tipoEvento"] ?? "REMOTO";
-    localId = ev["localId"];
-    palestranteId = ev["palestranteId"];
-
-    dataEvento = DateTime.tryParse(ev["data"]);
-    setState(() => mostrarForm = true);
+  void limparForm({bool manterVisibilidade = false}) {
+    setState(() {
+      eventoEditando = null;
+      tituloCtrl.clear();
+      descricaoCtrl.clear();
+      vagasCtrl.text = '0';
+      dataEvento = null;
+      tipoEvento = "PRESENCIAL";
+      localId = null;
+      palestranteId = null;
+      mensagemAlerta = ""; // Limpa a mensagem ao limpar o formulário
+      isError = false; // Limpa o estado de erro
+      if (!manterVisibilidade) {
+        mostrarForm = false;
+      }
+    });
   }
 
-  void limparForm() {
-    eventoEditando = null;
-    tituloCtrl.clear();
-    descricaoCtrl.clear();
-    vagasCtrl.clear();
-    tipoEvento = "REMOTO";
-    localId = null;
-    palestranteId = null;
-    dataEvento = null;
-    mensagemErro = "";
+  void preencherForm(Map<String, dynamic> e) {
+    limparForm(manterVisibilidade: true); // Limpa campos, mas mantém 'mostrarForm' true
+    
+    final dataString = e['data'];
+    final localIdValue = e['localId'];
+    final palestranteIdValue = e['palestranteId'];
+
+    DateTime? parsedDate;
+    if (dataString is String) {
+      try {
+        parsedDate = DateTime.parse(dataString);
+      } catch (_) {}
+    }
+
+    // Garante que os IDs sejam tratados como int (necessário para Dropdown)
+    final parsedLocalId = localIdValue is int ? localIdValue : (localIdValue is String ? int.tryParse(localIdValue) : null);
+    final parsedPalestranteId = palestranteIdValue is int ? palestranteIdValue : (palestranteIdValue is String ? int.tryParse(palestranteIdValue) : null);
+
+    setState(() {
+      eventoEditando = e;
+      tituloCtrl.text = e['titulo'] ?? "";
+      descricaoCtrl.text = e['descricao'] ?? "";
+      vagasCtrl.text = (e['vagas'] ?? 0).toString();
+      dataEvento = parsedDate;
+      tipoEvento = e['tipoEvento'] ?? "PRESENCIAL";
+      localId = parsedLocalId;
+      palestranteId = parsedPalestranteId;
+      mostrarForm = true;
+      mensagemAlerta = "";
+      isError = false;
+    });
+  }
+
+  Future<void> selecionarData(BuildContext context) async {
+    final DateTime? dataSelecionada = await showDatePicker(
+      context: context,
+      initialDate: dataEvento ?? DateTime.now(),
+      firstDate: DateTime(2000),
+      lastDate: DateTime(2030),
+    );
+
+    if (dataSelecionada != null) {
+      final TimeOfDay? horaSelecionada = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.fromDateTime(dataEvento ?? DateTime.now()),
+      );
+
+      if (horaSelecionada != null) {
+        setState(() {
+          dataEvento = DateTime(
+            dataSelecionada.year,
+            dataSelecionada.month,
+            dataSelecionada.day,
+            horaSelecionada.hour,
+            horaSelecionada.minute,
+          );
+        });
+      }
+    }
   }
 
   Future<void> salvar() async {
+    setState(() {
+      loading = true;
+      mensagemAlerta = "";
+      isError = false;
+    });
+
+    // === VALIDAÇÕES ===
     if (tituloCtrl.text.isEmpty) {
-      setState(() => mensagemErro = "O título é obrigatório");
+      setState(() {
+        mensagemAlerta = "O título é obrigatório";
+        isError = true;
+        loading = false;
+      });
       return;
     }
     if (dataEvento == null) {
-      setState(() => mensagemErro = "Selecione uma data");
+      setState(() {
+        mensagemAlerta = "Selecione uma data e hora";
+        isError = true;
+        loading = false;
+      });
       return;
     }
     if (palestranteId == null) {
-      setState(() => mensagemErro = "Selecione um palestrante");
+      setState(() {
+        mensagemAlerta = "Selecione o palestrante";
+        isError = true;
+        loading = false;
+      });
       return;
     }
-    if (tipoEvento != "REMOTO" && localId == null) {
-      setState(() => mensagemErro = "Selecione o local do evento");
+    if ((tipoEvento == "PRESENCIAL" || tipoEvento == "HIBRIDO") && localId == null) {
+      setState(() {
+        mensagemAlerta = "Selecione o local do evento";
+        isError = true;
+        loading = false;
+      });
+      return;
+    }
+    if ((int.tryParse(vagasCtrl.text) ?? 0) < 0) {
+      setState(() {
+        mensagemAlerta = "O número de vagas não pode ser negativo";
+        isError = true;
+        loading = false;
+      });
       return;
     }
 
+    // === CONSTRUÇÃO DO BODY ===
     final body = {
       "titulo": tituloCtrl.text,
       "descricao": descricaoCtrl.text,
       "data": dataEvento!.toIso8601String(),
       "tipoEvento": tipoEvento,
-      "estadoEvento": "ABERTO",
+      "estadoEvento": "ABERTO", // Assumindo estado inicial
       "vagas": int.tryParse(vagasCtrl.text) ?? 0,
       "localId": tipoEvento == "REMOTO" ? null : localId,
       "palestranteId": palestranteId,
@@ -110,304 +244,356 @@ class _EventoScreenState extends State<EventoScreen> {
 
     try {
       if (eventoEditando != null) {
-        await EventoService.editarEvento(eventoEditando!["id"], body);
+        await EventoService.editarEvento(eventoEditando!["id"] as int, body);
+        setState(() {
+          mensagemAlerta = "Evento atualizado com sucesso!";
+          isError = false;
+        });
       } else {
         await EventoService.criarEvento(body);
+        setState(() {
+          mensagemAlerta = "Evento cadastrado com sucesso!";
+          isError = false;
+        });
       }
 
       await carregarDados();
       limparForm();
       setState(() => mostrarForm = false);
     } catch (e) {
-      setState(() => mensagemErro = "Erro ao salvar evento");
+      setState(() {
+        mensagemAlerta = e.toString().replaceFirst('Exception: ', '');
+        isError = true;
+      });
+    } finally {
+      setState(() => loading = false);
     }
   }
 
   Future<void> deletar(int id) async {
+    setState(() {
+      mensagemAlerta = "";
+      isError = false;
+    });
     try {
       await EventoService.deletarEvento(id);
       await carregarDados();
+      setState(() {
+        mensagemAlerta = "Evento deletado com sucesso!";
+        isError = false;
+      });
     } catch (e) {
-      setState(() => mensagemErro = "Erro ao deletar evento");
+      setState(() {
+        mensagemAlerta = e.toString().replaceFirst('Exception: ', '');
+        isError = true;
+      });
     }
   }
 
-  Future<void> selecionarData() async {
-    final date = await showDatePicker(
-      context: context,
-      initialDate: dataEvento ?? DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2100),
-    );
+  // === WIDGETS DE DESIGN (COPIADOS/ADAPTADOS DE _UsuarioScreenState) ===
 
-    if (date != null) {
-      final time = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.fromDateTime(DateTime.now()),
-      );
-
-      if (time != null) {
-        setState(() {
-          dataEvento = DateTime(
-            date.year,
-            date.month,
-            date.day,
-            time.hour,
-            time.minute,
-          );
-        });
-      }
-    }
-  }
-
-  // ------------------------------
-  //         ESTILOS (TEMP)
-  // ------------------------------
-
-  BoxDecoration get cardDecoration => BoxDecoration(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(12),
-    border: Border.all(color: const Color(0xFFE0E0E0)),
-    boxShadow: const [
-      BoxShadow(
-        color: Color.fromRGBO(123, 97, 255, 0.12),
-        blurRadius: 12,
-        offset: Offset(0, 6),
+  InputDecoration inputStyle(String label) {
+    return InputDecoration(
+      labelText: label,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(8),
+        borderSide: const BorderSide(color: Color(0xFF2563EB), width: 1.5),
       ),
-    ],
-  );
+    );
+  }
 
-  InputDecoration get inputStyle => InputDecoration(
-    border: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: Color(0xFFE0E0E0)),
-    ),
-    focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: Color(0xFF9B5DE5), width: 2),
-    ),
-    filled: true,
-    fillColor: Colors.white,
-    contentPadding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
-  );
+  // Widget auxiliar para formatar a data
+  String _formatarData(DateTime? date) {
+    if (date == null) return "Selecione data e hora";
+    return DateFormat('dd/MM/yyyy HH:mm').format(date);
+  }
 
-  // ------------------------------
+  Widget buildForm() {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(14),
+        boxShadow: const [
+          BoxShadow(
+            color: Colors.black12,
+            blurRadius: 12,
+            offset: Offset(0, 4),
+          )
+        ],
+      ),
+      child: Column(
+        children: [
+          // Mensagem de Alerta (Sucesso ou Erro)
+          if (mensagemAlerta.isNotEmpty && (mostrarForm || isError))
+            Container(
+              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(bottom: 15),
+              decoration: BoxDecoration(
+                color: isError ? Colors.red.shade100 : Colors.green.shade100,
+                border: Border.all(color: isError ? Colors.red.shade300 : Colors.green.shade300),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                mensagemAlerta,
+                style: TextStyle(color: isError ? Colors.red.shade900 : Colors.green.shade900),
+                textAlign: TextAlign.center,
+              ),
+            ),
+
+          TextField(controller: tituloCtrl, decoration: inputStyle("Título do Evento")),
+          const SizedBox(height: 10),
+
+          TextField(
+            controller: descricaoCtrl,
+            decoration: inputStyle("Descrição"),
+            maxLines: 3,
+          ),
+          const SizedBox(height: 10),
+
+          // Data e Hora e Vagas
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: () => selecionarData(context),
+                  icon: const Icon(Icons.calendar_today, size: 18, color: Color(0xFF2563EB)),
+                  label: Text(
+                    _formatarData(dataEvento),
+                    style: TextStyle(color: dataEvento == null ? Colors.black54 : Colors.black),
+                  ),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    side: const BorderSide(color: Color(0xFF2563EB)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 10),
+              // Vagas (Campo de texto com design de inputStyle)
+              SizedBox(
+                width: 100,
+                child: TextField(
+                  controller: vagasCtrl,
+                  decoration: inputStyle("Vagas"),
+                  keyboardType: TextInputType.number,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+
+          // Dropdown: Tipo de Evento
+          DropdownButtonFormField<String>(
+            value: tipoEvento.isEmpty ? null : tipoEvento,
+            decoration: inputStyle("Tipo de Evento"),
+            items: tiposEvento.map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
+            onChanged: (v) {
+              setState(() {
+                tipoEvento = v.toString();
+                if (tipoEvento == "REMOTO") localId = null;
+              });
+            },
+          ),
+          const SizedBox(height: 10),
+
+          // Dropdown: Palestrante (Usuários)
+          DropdownButtonFormField<int>(
+            value: palestranteId,
+            decoration: inputStyle("Palestrante"),
+            items: palestrantes.map((p) => DropdownMenuItem<int>(
+                  value: p['id'] as int,
+                  child: Text(p['nome'] ?? 'Usuário Sem Nome'),
+                )).toList(),
+            onChanged: (v) => setState(() => palestranteId = v),
+            isExpanded: true,
+          ),
+          const SizedBox(height: 10),
+
+          // Dropdown: Local (Visível apenas para PRESENCIAL ou HIBRIDO)
+          if (tipoEvento == "PRESENCIAL" || tipoEvento == "HIBRIDO")
+            Column(
+              children: [
+                DropdownButtonFormField<int>(
+                  value: localId,
+                  decoration: inputStyle("Local do Evento"),
+                  items: locais.map((l) => DropdownMenuItem<int>(
+                        value: l['id'] as int,
+                        child: Text(l['nome'] ?? 'Local Sem Nome'),
+                      )).toList(),
+                  onChanged: (v) => setState(() => localId = v),
+                  isExpanded: true,
+                ),
+                const SizedBox(height: 20),
+              ],
+            ),
+          
+          if (!(tipoEvento == "PRESENCIAL" || tipoEvento == "HIBRIDO"))
+            const SizedBox(height: 20), // Espaçamento se o local não for exibido
+
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: loading ? null : salvar,
+              style: ElevatedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                backgroundColor: eventoEditando != null ? const Color(0xFF2563EB) : Colors.green,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: loading
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                    )
+                  : Text(
+                      eventoEditando != null ? "Atualizar Evento" : "Cadastrar Evento",
+                      style: const TextStyle(
+                          fontWeight: FontWeight.bold, color: Colors.white, fontSize: 16),
+                    ),
+            ),
+          )
+        ],
+      ),
+    );
+  }
+
+  Widget buildCard(dynamic evento) {
+    // Busca o nome do palestrante e local para exibição
+    final palestranteNome = palestrantes.firstWhere(
+        (p) => p['id'] == evento['palestranteId'],
+        orElse: () => {'nome': 'Desconhecido'})['nome'];
+    final localNome = locais.firstWhere(
+        (l) => l['id'] == evento['localId'],
+        orElse: () => {'nome': 'Remoto/N/A'})['nome'];
+
+    final dataHora = _formatarData(DateTime.tryParse(evento['data'] ?? ''));
+    final tipo = evento['tipoEvento'];
+
+    return Card(
+      elevation: 3,
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      child: ListTile(
+        title: Text(
+          evento["titulo"] ?? "",
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text("Tipo: $tipo"),
+            Text("Data/Hora: $dataHora"),
+            Text("Palestrante: $palestranteNome"),
+            if (tipo != 'REMOTO') Text("Local: $localNome"),
+            Text("Vagas: ${evento['vagas'] ?? 0}"),
+          ],
+        ),
+        isThreeLine: true, // Garante espaço para mais linhas
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.edit, color: Color(0xFF2563EB)),
+              onPressed: () => preencherForm(evento),
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete, color: Colors.red),
+              onPressed: () => deletar(evento["id"] as int),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF6F8FB),
-      appBar: AppHeader(),
-
-
+    return AppLayout(
+      userRole: userRole ?? "VISITANTE",
       body: SingleChildScrollView(
-        padding: const EdgeInsets.all(18),
+        padding: const EdgeInsets.all(20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // HEADER
+            // Header + botão expandir
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  eventoEditando != null
-                      ? "Atualizar Evento"
-                      : "Cadastro de Evento",
+                  eventoEditando != null ? "Editar Evento" : "Cadastrar Evento",
                   style: const TextStyle(
                     fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF2A2A2A),
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-
-                ElevatedButton(
+                ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF06D6A0),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 18, vertical: 12),
+                    backgroundColor: mostrarForm ? Colors.grey : const Color(0xFF2563EB),
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   onPressed: () {
-                    setState(() => mostrarForm = !mostrarForm);
-                    if (!mostrarForm) limparForm();
+                    if (mostrarForm) {
+                      limparForm(); // Limpa e fecha
+                    } else {
+                      limparForm(manterVisibilidade: true); // Limpa mas só vai mostrar se mostrarForm for true
+                      setState(() => mostrarForm = true); // Alterna e mostra o formulário limpo
+                    }
                   },
-                  child: Text(
-                    mostrarForm ? "Fechar Formulário" : "Expandir Formulário",
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  icon: Icon(
+                    mostrarForm ? Icons.close : Icons.add,
+                    color: Colors.white,
                   ),
-                ),
+                  label: Text(
+                    mostrarForm ? "Fechar" : "Novo Evento",
+                    style: const TextStyle(color: Colors.white),
+                  ),
+                )
               ],
             ),
 
-            const SizedBox(height: 16),
+            const SizedBox(height: 20),
 
-            // FORM CARD
-            if (mostrarForm)
-              Container(
-                padding: const EdgeInsets.all(18),
-                decoration: cardDecoration,
-                child: Column(
-                  children: [
-                    if (mensagemErro.isNotEmpty)
-                      Text(
-                        mensagemErro,
-                        style: const TextStyle(color: Colors.red),
-                      ),
-
-                    const SizedBox(height: 10),
-
-                    TextField(
-                      controller: tituloCtrl,
-                      decoration: inputStyle.copyWith(labelText: "Título"),
-                    ),
-                    const SizedBox(height: 12),
-
-                    TextField(
-                      controller: descricaoCtrl,
-                      decoration: inputStyle.copyWith(labelText: "Descrição"),
-                    ),
-                    const SizedBox(height: 12),
-
-                    TextField(
-                      readOnly: true,
-                      decoration: inputStyle.copyWith(
-                        labelText: "Data do Evento",
-                        hintText: dataEvento == null
-                            ? "Selecionar Data"
-                            : dataEvento.toString(),
-                      ),
-                      onTap: selecionarData,
-                    ),
-                    const SizedBox(height: 12),
-
-                    DropdownButtonFormField<String>(
-                      value: tipoEvento,
-                      decoration: inputStyle.copyWith(labelText: "Tipo de Evento"),
-                      items: const [
-                        DropdownMenuItem(
-                            value: "REMOTO", child: Text("Remoto")),
-                        DropdownMenuItem(
-                            value: "PRESENCIAL", child: Text("Presencial")),
-                        DropdownMenuItem(
-                            value: "HIBRIDO", child: Text("Híbrido")),
-                      ],
-                      onChanged: (v) => setState(() => tipoEvento = v ?? "REMOTO"),
-                    ),
-                    const SizedBox(height: 12),
-
-                    TextField(
-                      controller: vagasCtrl,
-                      decoration: inputStyle.copyWith(labelText: "Vagas"),
-                      keyboardType: TextInputType.number,
-                    ),
-                    const SizedBox(height: 12),
-
-                    if (tipoEvento != "REMOTO")
-                      DropdownButtonFormField<int>(
-                        value: localId,
-                        decoration: inputStyle.copyWith(labelText: "Local"),
-                        items: locais
-                            .map<DropdownMenuItem<int>>(
-                              (l) => DropdownMenuItem(
-                                value: l["id"],
-                                child: Text("${l["nome"]} - ${l["endereco"]["cidade"]}"),
-                              ),
-                            )
-                            .toList(),
-                        onChanged: (v) => setState(() => localId = v),
-                      ),
-
-                    const SizedBox(height: 12),
-
-                    DropdownButtonFormField<int>(
-                      value: palestranteId,
-                      decoration: inputStyle.copyWith(labelText: "Palestrante"),
-                      items: palestrantes
-                          .map<DropdownMenuItem<int>>(
-                            (p) => DropdownMenuItem(
-                              value: p["id"],
-                              child: Text("${p["nome"]} - ${p["email"]}"),
-                            ),
-                          )
-                          .toList(),
-                      onChanged: (v) => setState(() => palestranteId = v),
-                    ),
-
-                    const SizedBox(height: 18),
-
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF06D6A0),
-                          padding: const EdgeInsets.symmetric(vertical: 14),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                        ),
-                        onPressed: salvar,
-                        child: Text(
-                          eventoEditando != null ? "Atualizar" : "Cadastrar",
-                          style: const TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    )
-                  ],
-                ),
-              ),
+            if (mostrarForm) buildForm(),
 
             const SizedBox(height: 30),
 
-            const Text(
-              "Eventos cadastrados",
-              style:
-                  TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            // Mensagem de Alerta (para operações de delete ou falha geral)
+            if (mensagemAlerta.isNotEmpty && !mostrarForm)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.only(bottom: 15),
+                decoration: BoxDecoration(
+                  color: isError ? Colors.red.shade100 : Colors.green.shade100,
+                  border: Border.all(color: isError ? Colors.red.shade300 : Colors.green.shade300),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  mensagemAlerta,
+                  style: TextStyle(color: isError ? Colors.red.shade900 : Colors.green.shade900),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+
+            const Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                "Eventos Cadastrados",
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
             ),
 
-            const SizedBox(height: 10),
+            const SizedBox(height: 14),
 
             if (eventos.isEmpty)
-              const Text("Nenhum evento cadastrado"),
+              const Text("Nenhum evento cadastrado", style: TextStyle(color: Colors.grey)),
 
-            ...eventos.map((e) {
-              return Container(
-                padding: const EdgeInsets.all(18),
-                margin: const EdgeInsets.symmetric(vertical: 6),
-                decoration: cardDecoration,
-                child: ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text(
-                    e["titulo"],
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                  subtitle: Text(
-                    "Data: ${DateTime.parse(e["data"])}\n"
-                    "Tipo: ${e["tipoEvento"]}\n"
-                    "Vagas: ${e["vagas"]}",
-                  ),
-                  trailing: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      IconButton(
-                        icon: const Icon(Icons.edit, color: Colors.blue),
-                        onPressed: () => preencherForm(e),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => deletar(e["id"]),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            }),
+            ...eventos.map(buildCard).toList(),
           ],
         ),
       ),
