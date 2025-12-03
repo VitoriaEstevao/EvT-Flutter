@@ -25,12 +25,13 @@ public class LocalController {
         var criado = localService.criarLocal(localDTO);
         return ResponseEntity.created(URI.create("/locais/" + criado.nome())).body(criado);
     }
+    
     @PreAuthorize("!hasAuthority(T(br.com.bassi.trabalho_facu_lp1.domain.enuns.EnumCargos).VISITANTE.name())")
     @GetMapping
     public ResponseEntity<List<LocalResponseDTO>> listarLocais() {
         return ResponseEntity.ok(localService.listarLocais());
     }
-    @PreAuthorize("!hasAuthority(T(br.com.bassi.trabalho_facu_lp1.domain.enuns.EnumCargos).VISITANTE.name())")
+    
     @GetMapping("/{id}")
     public ResponseEntity<LocalResponseDTO> buscarLocal(@PathVariable Long id) {
         return localService.buscarLocal(id)
