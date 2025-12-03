@@ -9,8 +9,7 @@ class AuthScreen extends StatefulWidget {
 }
 
 class _AuthScreenState extends State<AuthScreen> {
-  // Inicialmente no modo login, para refletir a AuthPage do React
-  bool isLogin = true; 
+  bool isLogin = true; // Define se o modo atual é Login ou Cadastro
   bool loading = false;
 
   final TextEditingController nomeController = TextEditingController();
@@ -18,27 +17,26 @@ class _AuthScreenState extends State<AuthScreen> {
   final TextEditingController senhaController = TextEditingController();
   final TextEditingController cpfController = TextEditingController();
 
-  // Função central para Login ou Cadastro
+  /// Realiza a operação de Login ou Cadastro.
   Future<void> handleSubmit() async {
     setState(() => loading = true);
 
     try {
       if (isLogin) {
-        // --- LÓGICA DE LOGIN ---
+        // Lógica de Login
         await CadastroService.loginUsuario(
           emailController.text,
           senhaController.text,
         );
 
-        // Limpa os campos após sucesso
         emailController.clear();
         senhaController.clear();
 
-        // Navega para a tela principal (ajuste a rota se necessário)
+        // Navega para a tela principal
         Navigator.pushReplacementNamed(context, '/participacoes');
         
       } else {
-        // --- LÓGICA DE CADASTRO ---
+        // Lógica de Cadastro
         await CadastroService.cadastrarUsuario(
           nome: nomeController.text,
           email: emailController.text,
@@ -46,18 +44,18 @@ class _AuthScreenState extends State<AuthScreen> {
           cpf: cpfController.text,
         );
 
+        // Exibe mensagem de sucesso e volta para o modo Login
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Cadastro realizado com sucesso! Faça seu login.'),
-            backgroundColor: Color(0xFF10B981), // Cor de sucesso
+            backgroundColor: Color(0xFF10B981),
           ),
         );
         
-        // Retorna para o modo Login após o cadastro bem-sucedido
         toggleMode(forceLogin: true); 
       }
     } catch (e) {
-      // Exibe o erro retornado pelo serviço (Spring Boot)
+      // Exibe erro
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.toString().replaceFirst('Exception: ', '')),
@@ -69,8 +67,8 @@ class _AuthScreenState extends State<AuthScreen> {
     }
   }
 
+  /// Alterna entre os modos Login e Cadastro e limpa os campos.
   void toggleMode({bool forceLogin = false}) {
-    // Limpa todos os campos ao trocar o modo
     nomeController.clear();
     emailController.clear();
     senhaController.clear();
@@ -81,7 +79,7 @@ class _AuthScreenState extends State<AuthScreen> {
     });
   }
 
-  // Estilo de input unificado (pode ser movido para um arquivo de tema)
+  // Estilo de input padrao
   InputDecoration inputStyle(String placeholder) {
     return InputDecoration(
       hintText: placeholder,
@@ -96,7 +94,7 @@ class _AuthScreenState extends State<AuthScreen> {
     );
   }
 
-  // Helper para criar o campo de texto completo
+  // Componente para criar o campo de texto
   Widget buildTextField(
       String label, TextEditingController controller, String placeholder,
       {bool obscureText = false}) {
@@ -138,7 +136,7 @@ class _AuthScreenState extends State<AuthScreen> {
               ),
             ],
           ),
-          child: SingleChildScrollView( // Para evitar overflow em telas menores
+          child: SingleChildScrollView( 
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -153,13 +151,13 @@ class _AuthScreenState extends State<AuthScreen> {
 
                 const SizedBox(height: 20),
 
-                // Campos para Cadastro (só aparecem quando !isLogin)
+                // Campos de Cadastro (apenas se for modo Cadastro)
                 if (!isLogin) ...[
                   buildTextField("Nome", nomeController, "Digite seu nome"),
                   buildTextField("CPF", cpfController, "Digite seu CPF"),
                 ],
                 
-                // Campos comuns (Email e Senha)
+                // Campos Email e Senha
                 buildTextField("Email", emailController, "Digite seu email"),
                 buildTextField("Senha", senhaController, "Digite sua senha", obscureText: true),
 
@@ -178,21 +176,21 @@ class _AuthScreenState extends State<AuthScreen> {
                     ),
                     child: loading
                         ? const SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2.5,
-                              color: Colors.white,
-                            ),
-                          )
+                              width: 24,
+                              height: 24,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2.5,
+                                color: Colors.white,
+                              ),
+                            )
                         : Text(
-                            isLogin ? "Entrar" : "Cadastrar",
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              color: Colors.white,
-                              fontSize: 16,
+                              isLogin ? "Entrar" : "Cadastrar",
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w700,
+                                color: Colors.white,
+                                fontSize: 16,
+                              ),
                             ),
-                          ),
                   ),
                 ),
 

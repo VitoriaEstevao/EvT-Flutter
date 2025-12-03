@@ -1,38 +1,29 @@
-// lib/widgets/app_layout.dart
-
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'app_header.dart';
-
-// Imports limpos e sem espaços invisíveis
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../screens/participacao_screen.dart'; 
 import '../screens/local_screen.dart'; 
 import '../screens/evento_screen.dart'; 
 import '../screens/funcionario_screen.dart'; 
 import '../screens/usuario_screen.dart'; 
 
-// ----------------------------------------------------
-// 🎯 DADOS DE MAPEAMENTO (Cargos mapeados para Níveis)
-// ----------------------------------------------------
-
-// 🎯 APENAS CARGOS COM PERMISSÕES DE GERENTE
+// Cargos com permissão de Gerente
 const List<String> _gerenteCargos = [
   'GERENTE', 
 ];
 
-// 🎯 CARGOS COM PERMISSÕES DE FUNCIONARIO (nível intermediário)
+// Cargos com permissão de Funcionário (incluindo Gerente)
 const List<String> _funcionarioCargos = [
   'ANALISTA', 
   'ESTAGIARIO', 
   'APRENDIZ',
-  'COORDENADOR', // AGORA É FUNCIONÁRIO
+  'COORDENADOR',
 ];
-
-// ----------------------------------------------------
 
 class AppLayout extends StatelessWidget {
   final Widget body;
-  final String userRole; // Para filtrar os links do Drawer
+  final String userRole; 
 
   const AppLayout({
     super.key,
@@ -40,22 +31,19 @@ class AppLayout extends StatelessWidget {
     required this.userRole,
   });
 
-  // 1. Normaliza o papel para ser fácil de comparar (Remove espaços e usa MAIÚSCULAS)
   String get _normalizedRole {
     return userRole.trim().toUpperCase();
   }
 
-  // 2. isGerente verifica se o cargo está na lista de GERENTE
+  // Verifica se o usuário tem permissão de Gerente.
   bool get isGerente => _gerenteCargos.contains(_normalizedRole);
 
-  // 3. isFuncionario verifica se o cargo está na lista de FUNCIONARIO OU se é GERENTE
+  // Verifica se o usuário tem permissão de Funcionário ou superior.
   bool get isFuncionario {
     return _funcionarioCargos.contains(_normalizedRole) || isGerente;
   }
 
-  // --- MÉTODOS AUXILIARES ---
-
-  // 1. Mapeia a Rota para o Widget
+  // Mapeia a string da rota para o widget da tela correspondente.
   Widget _getWidgetForRoute(String routeName) {
     switch (routeName) {
       case "/participacoes": return const ParticipacaoPage();
@@ -70,7 +58,7 @@ class AppLayout extends StatelessWidget {
     }
   }
 
-  // 2. Constrói o Item do Drawer
+  // Constrói um item de menu para o Drawer com navegação instantânea.
   Widget _buildDrawerItem(BuildContext context, String title, String route, IconData icon, {required bool requiredPermission}) {
     if (!requiredPermission) return const SizedBox.shrink();
 
@@ -78,9 +66,8 @@ class AppLayout extends StatelessWidget {
       leading: Icon(icon, color: const Color(0xFF051127)),
       title: Text(title, style: const TextStyle(fontSize: 16)),
       onTap: () {
-        Navigator.pop(context); // 1. Fecha o Drawer
+        Navigator.pop(context); 
         
-        // 2. Navegação instantânea (sem animação)
         Navigator.of(context).push(
           PageRouteBuilder(
             pageBuilder: (context, animation1, animation2) => _getWidgetForRoute(route),
@@ -92,60 +79,63 @@ class AppLayout extends StatelessWidget {
     );
   }
 
-  // --- BUILD PRINCIPAL ---
-
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final bool isLargeScreen = screenWidth > 800;
+
     return Scaffold(
       appBar: const AppHeader(), 
       
-      // 🎯 DRAWER CENTRALIZADO
-      drawer: Drawer(
-        child: ListView(
-          padding: EdgeInsets.zero,
-          children: <Widget>[
-            // Cabeçalho do Drawer
-            const DrawerHeader(
-              decoration: BoxDecoration(color: Color(0xFF051127)),
-              child: Text(
-                'Menu de Navegação',
-                style: TextStyle(color: Colors.white, fontSize: 22),
+      // Menu lateral (Drawer)
+      drawer: isLargeScreen
+        ? null 
+        : Drawer(
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: <Widget>[
+              const DrawerHeader(
+                decoration: BoxDecoration(color: Color(0xFF051127)),
+                child: Text(
+                  'Menu de Navegação',
+                  style: TextStyle(color: Colors.white, fontSize: 22),
+                ),
               ),
-            ),
-            
-            // Links de Navegação com Permissão
-            _buildDrawerItem(context, "Participe", "/participacoes", Icons.event_available, requiredPermission: true),
-            
-            // FUNCIONARIOS e GERENTES (Nível Intermediário)
-            if (isFuncionario) ...[
-              _buildDrawerItem(context, "Locais", "/locais", Icons.location_on, requiredPermission: true),
-              _buildDrawerItem(context, "Eventos", "/eventos", Icons.calendar_month, requiredPermission: true),
-            ],
-            
-            // APENAS GERENTES (Nível Mais Alto)
-            if (isGerente) ...[
-              _buildDrawerItem(context, "Funcionários", "/funcionarios", Icons.people_alt, requiredPermission: true),
-              _buildDrawerItem(context, "Usuários", "/usuarios", Icons.person_search, requiredPermission: true),
-            ],
-            
-            const Divider(),
+              
+              // Link Participação (Todos)
+              _buildDrawerItem(context, "Participe", "/participacoes", Icons.event_available, requiredPermission: true),
+              
+              // Links para Funcionários e Gerentes
+              if (isFuncionario) ...[
+                _buildDrawerItem(context, "Locais", "/locais", Icons.location_on, requiredPermission: true),
+                _buildDrawerItem(context, "Eventos", "/eventos", Icons.calendar_month, requiredPermission: true),
+              ],
+              
+              // Links exclusivos para Gerentes
+              if (isGerente) ...[
+                _buildDrawerItem(context, "Funcionários", "/funcionarios", Icons.people_alt, requiredPermission: true),
+                _buildDrawerItem(context, "Usuários", "/usuarios", Icons.person_search, requiredPermission: true),
+              ],
+              
+              const Divider(),
 
-            // Opção Sair (Logout)
-            ListTile(
-              leading: const Icon(Icons.exit_to_app),
-              title: const Text('Sair'),
-              onTap: () async {
-                Navigator.pop(context); // Fecha o drawer
-                final prefs = await SharedPreferences.getInstance();
-                await prefs.remove("token");
-                Navigator.pushReplacementNamed(context, '/auth'); 
-              },
-            ),
-          ],
+              // Opção Sair (Logout)
+              ListTile(
+                leading: const Icon(Icons.exit_to_app),
+                title: const Text('Sair'),
+                onTap: () async {
+                  Navigator.pop(context); 
+                  final prefs = await SharedPreferences.getInstance();
+                  // Remove o token de autenticação
+                  await prefs.remove("token");
+                  Navigator.pushReplacementNamed(context, '/auth'); 
+                },
+              ),
+            ],
+          ),
         ),
-      ),
       
-      // Conteúdo da Tela (O que for passado para o Layout)
+      // Conteúdo principal da tela
       body: body,
     );
   }

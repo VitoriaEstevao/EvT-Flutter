@@ -3,18 +3,15 @@ import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class LocalService {
-  // Ajuste o endereço base se necessário (ex: 10.0.2.2 para Android Emulator)
   static const String baseUrl = "http://localhost:8080/locais";
 
-  // 1. Função para buscar o token
+  /// Gera o cabeçalho de autenticação com Bearer Token.
   static Future<Map<String, String>> authHeader() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
 
-    // Cabeçalho base
     final headers = {"Content-Type": "application/json"};
 
-    // Adiciona o token se existir
     if (token != null) {
       headers["Authorization"] = "Bearer $token";
     }
@@ -22,10 +19,9 @@ class LocalService {
     return headers;
   }
 
-  // 2. Helper para tratar erros da API
+  /// Trata a resposta HTTP, lançando exceção em caso de erro.
   static dynamic _handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      // Tenta decodificar o corpo, mas permite que seja vazio (No Content)
       try {
         return jsonDecode(response.body);
       } catch (_) {
@@ -35,25 +31,21 @@ class LocalService {
       String errorMessage = 'Erro na requisição (Status: ${response.statusCode})';
       try {
         final errorData = jsonDecode(response.body);
-        // Tenta extrair a mensagem de erro detalhada do Spring Boot/Backend
         if (errorData is Map && errorData.containsKey('mensagem')) {
           errorMessage = errorData['mensagem'];
         } else if (errorData is Map && errorData.containsKey('erros')) {
-          // Trata erros de validação
           if (errorData['erros'] is Map) {
             errorMessage = errorData['erros'].values.first.toString();
           } else {
             errorMessage = errorData['erros'].toString();
           }
         }
-      } catch (_) {
-        // Ignora se o corpo for vazio ou inválido
-      }
+      } catch (_) {}
       throw Exception(errorMessage);
     }
   }
 
-  // 3. Integração com ViaCEP
+  /// Busca o endereço completo a partir de um CEP usando ViaCEP.
   static Future<Map<String, dynamic>> buscarCepViaCep(String cep) async {
     final cleanCep = cep.replaceAll(RegExp(r'[^0-9]'), '');
     if (cleanCep.length != 8) {
@@ -76,14 +68,9 @@ class LocalService {
     return data;
   }
 
-  // ======================================
-  // MÉTODO ADICIONADO PARA CORRIGIR O ERRO
-  // ======================================
-
-  /// 🔹 Buscar um local pelo ID (Método ausente que causava o erro)
+  /// Busca um local específico pelo ID.
   static Future<Map<String, dynamic>> getLocalById(int id) async {
     final headers = await authHeader();
-    // Note que o endpoint é '$baseUrl/ID_DO_LOCAL'
     final url = Uri.parse('$baseUrl/$id');
 
     final response = await http.get(url, headers: headers);
@@ -93,19 +80,18 @@ class LocalService {
     if (data is Map<String, dynamic>) {
       return data;
     }
-    // Lança exceção se o backend retornar null ou uma lista inesperadamente.
     throw Exception('Local com ID $id não encontrado ou resposta inválida.');
   }
 
-
-  // Métodos CRUD de Local
+  /// Lista todos os locais.
   static Future<List<dynamic>> getLocais() async {
     final headers = await authHeader();
     final r = await http.get(Uri.parse(baseUrl), headers: headers);
     final data = _handleResponse(r);
-    return data ?? []; // Garante retorno de lista vazia se não houver dados
+    return data ?? [];
   }
 
+  /// Cria um novo local.
   static Future<void> criarLocal(Map<String, dynamic> body) async {
     final headers = await authHeader();
     final r = await http.post(
@@ -116,6 +102,7 @@ class LocalService {
     _handleResponse(r);
   }
 
+  /// Atualiza um local existente.
   static Future<void> atualizarLocal(String id, Map<String, dynamic> body) async {
     final headers = await authHeader();
     final r = await http.put(
@@ -126,9 +113,10 @@ class LocalService {
     _handleResponse(r);
   }
 
+  /// Deleta um local.
   static Future<void> deletarLocal(String id) async {
     final headers = await authHeader();
     final r = await http.delete(Uri.parse("$baseUrl/$id"), headers: headers);
-    _handleResponse(r); // Trata possíveis erros, como 404
+    _handleResponse(r);
   }
 }

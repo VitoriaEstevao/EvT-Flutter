@@ -1,5 +1,3 @@
-// lib/screens/participacao_screen.dart (Ajustado com Novo Design)
-
 import 'dart:convert';
 import 'package:evt_flutter/widgets/app_layout.dart';
 import 'package:flutter/material.dart';
@@ -17,22 +15,17 @@ class ParticipacaoPage extends StatefulWidget {
 }
 
 class _ParticipacaoPageState extends State<ParticipacaoPage> {
-  // 🎨 CONSTANTES DE ESTILO (Novas Cores)
-  static const Color _primaryColor = Color(0xFF2563EB); // Azul Principal
-  static const Color _backgroundColor = Color(0xFFF3F4F6); // Fundo Cinza Claro
-  static const Color _successColor = Color(0xFF10B981); // Verde
-  static const Color _errorColor = Color(0xFFEF4444); // Vermelho
+  static const Color _primaryColor = Color(0xFF2563EB);
+  static const Color _successColor = Color(0xFF10B981);
+  static const Color _errorColor = Color(0xFFEF4444);
 
-  // ESTADO E INICIALIZAÇÃO
   List eventos = [];
   dynamic eventoSelecionado;
   List participantes = [];
   List meusEventos = [];
-
   String mensagem = "";
   String mensagemTipo = "";
   String? userRole;
-
   dynamic localDetalhes;
 
   @override
@@ -43,10 +36,8 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
     carregarMeusEventos();
   }
 
-  // ----------------------------
-  // CARREGAMENTOS (Lógica mantida)
-  // ----------------------------
-
+  // Lógica do Login/Permissão
+  /// Decodifica o token JWT para obter a permissão (role) do usuário.
   Future<void> carregarTokenRole() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("token");
@@ -62,6 +53,7 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
     }
   }
 
+  /// Carrega a lista de todos os eventos disponíveis.
   Future<void> carregarEventos() async {
     try {
       final data = await EventoService.getEventos();
@@ -72,15 +64,17 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
     }
   }
 
+  /// Carrega os eventos em que o usuário logado está participando.
   Future<void> carregarMeusEventos() async {
     try {
       final data = await ParticipacaoService.getMeusEventos();
       setState(() => meusEventos = data);
     } catch (e) {
-      // Erro silencioso
+      // Erro silencioso (esperado se não houver eventos ou não estiver logado)
     }
   }
 
+  /// Carrega a lista de participantes do evento selecionado.
   Future<void> carregarParticipantes() async {
     if (eventoSelecionado == null || userRole == "VISITANTE") {
       setState(() => participantes = []);
@@ -98,6 +92,7 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
     }
   }
 
+  /// Carrega os detalhes do local do evento selecionado.
   Future<void> carregarLocal() async {
     if (eventoSelecionado == null || eventoSelecionado["localId"] == null) {
       setState(() => localDetalhes = null);
@@ -109,7 +104,6 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
 
     try {
       final local = await LocalService.getLocalById(eventoSelecionado["localId"] as int);
-
       setState(() => localDetalhes = local);
     } catch (e) {
       setState(() => localDetalhes = {
@@ -119,10 +113,7 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
     }
   }
 
-  // ----------------------------
-  // AÇÕES (Lógica mantida)
-  // ----------------------------
-
+  /// Registra a participação do usuário no evento selecionado.
   Future<void> participar(String titulo) async {
     setState(() {
       mensagem = "";
@@ -137,6 +128,7 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
         mensagemTipo = "success";
       });
 
+      // Atualiza listas após a ação.
       await carregarParticipantes();
       await carregarMeusEventos();
     } catch (e) {
@@ -147,10 +139,6 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
       });
     }
   }
-
-  // ----------------------------
-  // FORMATADORES (Mantidos e com ajustes de estilo)
-  // ----------------------------
 
   String formatarData(String? data) {
     if (data == null) return "Sem data";
@@ -177,10 +165,6 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
     );
   }
 
-  // ----------------------------
-  // UI (Ajustada)
-  // ----------------------------
-
   @override
   Widget build(BuildContext context) {
     return AppLayout(
@@ -189,40 +173,37 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
         padding: const EdgeInsets.all(16),
         child: Center(
           child: Container(
-            padding: EdgeInsets.all(24), // Aumento de padding
+            padding: EdgeInsets.all(24),
             constraints: BoxConstraints(maxWidth: 600),
             margin: EdgeInsets.symmetric(horizontal: 8),
             decoration: BoxDecoration(
               color: Colors.white,
-              borderRadius: BorderRadius.circular(16), // Aumento de raio
+              borderRadius: BorderRadius.circular(16),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.08), // Sombreamento mais forte
-                  blurRadius: 16, // Aumento de blur
+                  color: Colors.black.withOpacity(0.08),
+                  blurRadius: 16,
                   offset: Offset(0, 6),
                 ),
               ],
             ),
 
-            // COLUNA PRINCIPAL
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // TÍTULO
                 Center(
                   child: Text(
                     "Participar de Eventos",
                     style: TextStyle(
-                      fontSize: 24, // Aumento de fonte
-                      fontWeight: FontWeight.w800, // Mais negrito
-                      color: _primaryColor, // Usando a cor primária
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: _primaryColor,
                     ),
                   ),
                 ),
 
-                SizedBox(height: 30), // Mais espaço
+                SizedBox(height: 30),
 
-                // DROPDOWN EVENTO
                 Text(
                   "Selecione o Evento:",
                   style: TextStyle(
@@ -235,7 +216,7 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
                     contentPadding: EdgeInsets.symmetric(vertical: 16, horizontal: 12),
                     labelText: "Evento",
                     border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12), // Raio arredondado
+                      borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide(color: Colors.grey.shade300),
                     ),
                     focusedBorder: OutlineInputBorder(
@@ -261,7 +242,6 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
                   },
                 ),
 
-                // MENSAGEM
                 if (mensagem.isNotEmpty) ...[
                   SizedBox(height: 18),
                   Container(
@@ -288,7 +268,6 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
                   ),
                 ],
 
-                // BOTÃO PARTICIPAR
                 if (eventoSelecionado != null) ...[
                   SizedBox(height: 20),
                   SizedBox(
@@ -313,7 +292,6 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
                   ),
                 ],
 
-                // DETALHES DO EVENTO
                 if (eventoSelecionado != null) ...[
                   SizedBox(height: 40),
                   Text(
@@ -348,7 +326,6 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
                   ],
                 ],
 
-                // PARTICIPANTES
                 if (eventoSelecionado != null && userRole != "VISITANTE") ...[
                   SizedBox(height: 40),
                   Text(
@@ -378,7 +355,6 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
                   ),
                 ],
 
-                // MEUS EVENTOS
                 SizedBox(height: 40),
                 Text(
                   "Seus Eventos Confirmados",
@@ -413,7 +389,6 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
     );
   }
 
-  // Novo Widget auxiliar para detalhes (consistente com EventosPage)
   Widget _buildDetailRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4.0),
@@ -440,7 +415,6 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
     );
   }
 
-  // Novo Widget auxiliar para lista de participantes
   Widget _buildParticipantTile(String nome, String? email) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -474,7 +448,6 @@ class _ParticipacaoPageState extends State<ParticipacaoPage> {
     );
   }
 
-  // Novo Widget auxiliar para lista de Meus Eventos
   Widget _buildMyEventTile(String titulo, String data) {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),

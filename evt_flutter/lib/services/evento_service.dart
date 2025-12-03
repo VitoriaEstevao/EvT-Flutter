@@ -1,12 +1,11 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'package:shared_preferences/shared_preferences.dart'; // NECESSÁRIO!
+import 'package:shared_preferences/shared_preferences.dart';
 
 class EventoService {
-  // Ajuste o endereço base se necessário (ex: 10.0.2.2 para Android Emulator)
   static const String baseUrl = 'http://localhost:8080/eventos';
 
-  /// 🔹 Gera o cabeçalho de autenticação (Bearer Token)
+  /// Gera o cabeçalho de autenticação com Bearer Token.
   static Future<Map<String, String>> _authHeader({bool jsonContent = false}) async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString('token');
@@ -23,10 +22,9 @@ class EventoService {
     return headers;
   }
 
-  /// 🔹 Helper para tratar a resposta da API (incluindo erros e validação)
+  /// Trata a resposta HTTP, lançando exceção em caso de erro.
   static dynamic _handleResponse(http.Response response) {
     if (response.statusCode >= 200 && response.statusCode < 300) {
-      // 204 No Content para DELETE retorna null
       if (response.body.isEmpty && response.statusCode == 204) {
         return null; 
       }
@@ -41,23 +39,19 @@ class EventoService {
         final errorData = jsonDecode(response.body);
         
         if (errorData is Map) {
-          // Trata erros de validação (array de 'erros')
           if (errorData.containsKey('erros') && errorData['erros'] is Map) {
             errorMessage = errorData['erros'].values.first.toString();
           } 
-          // Trata mensagens de erro gerais
           else if (errorData.containsKey('mensagem')) {
             errorMessage = errorData['mensagem'];
           }
         }
-      } catch (_) {
-        // Ignora se o corpo for vazio ou inválido
-      }
+      } catch (_) {}
       throw Exception(errorMessage);
     }
   }
 
-  /// 🔹 Listar todos os eventos
+  /// Lista todos os eventos.
   static Future<List<dynamic>> getEventos() async {
     final headers = await _authHeader();
     final url = Uri.parse(baseUrl);
@@ -67,7 +61,7 @@ class EventoService {
     return data ?? [];
   }
 
-  /// 🔹 Buscar evento por ID
+  /// Busca um evento específico pelo ID.
   static Future<Map<String, dynamic>> getEvento(int id) async {
     final headers = await _authHeader();
     final url = Uri.parse('$baseUrl/$id');
@@ -76,7 +70,7 @@ class EventoService {
     return _handleResponse(response);
   }
 
-  /// 🔹 Criar um novo evento
+  /// Cria um novo evento.
   static Future<void> criarEvento(Map<String, dynamic> evento) async {
     final headers = await _authHeader(jsonContent: true);
     final url = Uri.parse(baseUrl);
@@ -88,7 +82,7 @@ class EventoService {
     _handleResponse(response);
   }
 
-  /// 🔹 Editar evento existente
+  /// Edita um evento existente.
   static Future<void> editarEvento(int id, Map<String, dynamic> evento) async {
     final headers = await _authHeader(jsonContent: true);
     final url = Uri.parse('$baseUrl/$id');
@@ -100,12 +94,12 @@ class EventoService {
     _handleResponse(response);
   }
 
-  /// 🔹 Deletar evento
+  /// Deleta um evento pelo ID.
   static Future<void> deletarEvento(int id) async {
     final headers = await _authHeader();
     final url = Uri.parse('$baseUrl/$id');
     final response = await http.delete(url, headers: headers);
 
-    _handleResponse(response); // O 204 No Content é tratado
+    _handleResponse(response);
   }
 }

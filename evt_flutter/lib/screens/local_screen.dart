@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:evt_flutter/widgets/app_layout.dart';
-import 'dart:convert'; // 🎯 Adicionar para jsonDecode, utf8 e base64
-import 'package:shared_preferences/shared_preferences.dart'; // 🎯 Adicionar para SharedPreferences
+import 'dart:convert';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/local_service.dart';
-import '../widgets/app_header.dart'; // Mantido o widget AppHeader
+import '../widgets/app_header.dart';
 
 class LocalScreen extends StatefulWidget {
   const LocalScreen({Key? key}) : super(key: key);
@@ -18,8 +18,8 @@ class _LocalScreenState extends State<LocalScreen> {
   Map<String, dynamic>? localEditando;
   String? userRole;
   bool mostrarForm = false;
-  String mensagemAlerta = ""; // Unificado para sucesso e erro
-  bool isError = false; // Flag para diferenciar erro de sucesso
+  String mensagemAlerta = "";
+  bool isError = false;
 
   final nomeCtrl = TextEditingController();
   final ruaCtrl = TextEditingController();
@@ -30,7 +30,6 @@ class _LocalScreenState extends State<LocalScreen> {
   final cepCtrl = TextEditingController();
   final capacidadeCtrl = TextEditingController();
   
-  // Flag para desabilitar o botão enquanto busca CEP
   bool buscandoCep = false; 
 
   @override
@@ -55,6 +54,7 @@ class _LocalScreenState extends State<LocalScreen> {
 
   // --- LÓGICA DE DADOS ---
 
+  /// Busca e decodifica o token JWT do SharedPreferences para obter o 'role' do usuário.
   Future<void> carregarTokenRole() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("token");
@@ -65,12 +65,12 @@ class _LocalScreenState extends State<LocalScreen> {
         final payload = jsonDecode(
           utf8.decode(base64.decode(base64.normalize(parts[1]))),
         );
-        // ⚠️ Use setState para atualizar o userRole e reconstruir o widget
         setState(() => userRole = payload["role"]);
       }
     }
   }
 
+  /// Carrega a lista de locais da API e atualiza o estado.
   Future<void> carregarLocais() async {
     setState(() {
       mensagemAlerta = "";
@@ -87,8 +87,9 @@ class _LocalScreenState extends State<LocalScreen> {
     }
   }
 
+  /// Preenche o formulário com os dados de um local para edição.
   void preencherForm(Map<String, dynamic> local) {
-    limparFormulario(manterVisibilidade: true); // Limpa mas mantém o form aberto
+    limparFormulario(manterVisibilidade: true);
     
     localEditando = local;
 
@@ -106,13 +107,13 @@ class _LocalScreenState extends State<LocalScreen> {
     setState(() => mostrarForm = true);
   }
 
+  /// Salva (cria ou atualiza) um local na API.
   Future<void> salvar() async {
     setState(() {
       mensagemAlerta = "";
       isError = false;
     });
 
-    // Converte capacidade e número para o tipo correto esperado pelo Spring
     final capacidade = int.tryParse(capacidadeCtrl.text);
     final numero = int.tryParse(numeroCtrl.text);
 
@@ -161,13 +162,13 @@ class _LocalScreenState extends State<LocalScreen> {
       setState(() => mostrarForm = false);
     } catch (e) {
       setState(() {
-        // Remove 'Exception: ' da mensagem de erro
         mensagemAlerta = e.toString().replaceFirst('Exception: ', ''); 
         isError = true;
       });
     }
   }
 
+  /// Deleta um local da API usando seu ID.
   Future<void> deletar(String id) async {
     setState(() {
       mensagemAlerta = "";
@@ -188,6 +189,7 @@ class _LocalScreenState extends State<LocalScreen> {
     }
   }
 
+  /// Busca o endereço completo usando o CEP via ViaCep.
   Future<void> buscarCep() async {
     if (cepCtrl.text.isEmpty) {
       setState(() {
@@ -212,7 +214,6 @@ class _LocalScreenState extends State<LocalScreen> {
         bairroCtrl.text = data["bairro"] ?? "";
         cidadeCtrl.text = data["localidade"] ?? "";
         estadoCtrl.text = data["uf"] ?? "";
-        // Manter número e cep sem alteração (apenas se encontrado)
         
         mensagemAlerta = "Endereço preenchido via CEP!";
         isError = false;
@@ -227,6 +228,7 @@ class _LocalScreenState extends State<LocalScreen> {
     }
   }
 
+  /// Limpa todos os campos do formulário.
   void limparFormulario({bool manterVisibilidade = false}) {
     localEditando = null;
     nomeCtrl.clear();
@@ -256,7 +258,7 @@ class _LocalScreenState extends State<LocalScreen> {
     );
   }
 
-  // Novo widget para o campo CEP com botão de busca
+  /// Widget para o campo CEP com botão de busca.
   Widget buildCepField() {
     return Row(
       children: [
@@ -271,8 +273,8 @@ class _LocalScreenState extends State<LocalScreen> {
         ElevatedButton(
           onPressed: buscandoCep ? null : buscarCep,
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF10B981), // Cor do botão de buscar CEP
-            padding: const EdgeInsets.symmetric(vertical: 18), // Ajuste de padding para alinhar
+            backgroundColor: const Color(0xFF10B981),
+            padding: const EdgeInsets.symmetric(vertical: 18),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
           child: buscandoCep
@@ -290,6 +292,7 @@ class _LocalScreenState extends State<LocalScreen> {
     );
   }
 
+  /// Constrói o widget do formulário de cadastro/edição.
   Widget buildForm() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -341,7 +344,6 @@ class _LocalScreenState extends State<LocalScreen> {
           TextField(controller: numeroCtrl, decoration: inputStyle("Número")),
           const SizedBox(height: 10),
           
-          // Campos desabilitados, preenchidos pelo CEP
           TextField(controller: ruaCtrl, decoration: inputStyle("Rua"), readOnly: true, style: const TextStyle(color: Colors.grey)),
           const SizedBox(height: 10),
           TextField(controller: bairroCtrl, decoration: inputStyle("Bairro"), readOnly: true, style: const TextStyle(color: Colors.grey)),
@@ -365,7 +367,7 @@ class _LocalScreenState extends State<LocalScreen> {
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 12),
-                backgroundColor: localEditando != null ? const Color(0xFF2563EB) : Colors.green, // Azul para editar
+                backgroundColor: localEditando != null ? const Color(0xFF2563EB) : Colors.green,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
                 ),
@@ -383,6 +385,7 @@ class _LocalScreenState extends State<LocalScreen> {
     );
   }
 
+  /// Constrói o widget de cartão para exibir um local na lista.
   Widget buildCard(dynamic local) {
     final end = local["endereco"] ?? {};
 
@@ -428,7 +431,6 @@ class _LocalScreenState extends State<LocalScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Header + botão expandir
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -447,7 +449,6 @@ class _LocalScreenState extends State<LocalScreen> {
                     ),
                   ),
                   onPressed: () {
-                    // Limpa o formulário ao fechar ou se for abrir para novo cadastro
                     if (mostrarForm) {
                       limparFormulario();
                     }else {
@@ -469,12 +470,11 @@ class _LocalScreenState extends State<LocalScreen> {
 
             const SizedBox(height: 20),
 
-            // O formulário é exibido se mostrarForm for true
             if (mostrarForm) buildForm(),
 
             const SizedBox(height: 30),
 
-            // Mensagem de Alerta (para operações de delete ou falha geral)
+            // Exibe mensagem de alerta fora do formulário (delete/falha geral)
             if (mensagemAlerta.isNotEmpty && !mostrarForm)
               Container(
                 padding: const EdgeInsets.all(12),

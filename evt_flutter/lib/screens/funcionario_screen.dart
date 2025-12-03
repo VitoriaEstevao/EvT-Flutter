@@ -1,16 +1,12 @@
-// funcionarios_screen.dart (Design Atualizado)
-
 import 'dart:convert';
 import 'package:evt_flutter/widgets/app_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart'; // Para usar o objeto Response
+import 'package:http/http.dart';
 import '../services/funcionario_service.dart';
-// Note: 'AppHeader' foi mantido, mas 'AppTheme' foi removido para usar os estilos inline da UsuarioScreen
-import '../widgets/app_header.dart'; // Mantido, assumindo que você ainda quer usar
+import '../widgets/app_header.dart';
 
 class FuncionariosScreen extends StatefulWidget {
-  // Renomeado para seguir o padrão 'Screen'
   const FuncionariosScreen({Key? key}) : super(key: key);
 
   @override
@@ -21,11 +17,11 @@ class FuncionariosScreen extends StatefulWidget {
 class _FuncionariosScreenState extends State<FuncionariosScreen> {
   // === ESTADO DA TELA ===
   List<dynamic> funcionarios = [];
-  Map<String, dynamic>? funcionarioEditando; // Funcionário atualmente em edição
-  bool mostrarForm = false; // Estado para mostrar/esconder o formulário
-  bool loading = false; // Estado de carregamento
+  Map<String, dynamic>? funcionarioEditando;
+  bool mostrarForm = false;
+  bool loading = false;
   String? userRole;
-  // Controladores de Formulário
+
   final TextEditingController nomeCtrl = TextEditingController();
   final TextEditingController emailCtrl = TextEditingController();
   final TextEditingController cpfCtrl = TextEditingController();
@@ -34,9 +30,8 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
   String cargo = "";
   String departamento = "";
 
-  // Estado de Mensagens de Alerta (Sucesso ou Erro - Unificado como em UsuarioScreen)
   String mensagemAlerta = "";
-  bool isError = false; // Indica se mensagemAlerta é um erro
+  bool isError = false;
 
   // Dados Fixos
   final cargos = [
@@ -62,19 +57,16 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
     super.dispose();
   }
 
-  // Função auxiliar para processar e exibir erros do backend
+  /// Processa e exibe mensagens de erro da API.
   Future<void> _processarErros(Object error) async {
     String errorMessage = "Erro de conexão com o servidor.";
 
     if (error is Response) {
       try {
         final errorData = jsonDecode(error.body);
-        
-        // Verifica se há uma mensagem principal ou erros detalhados de campo
         if (errorData['mensagem'] != null) {
           errorMessage = errorData['mensagem'].toString();
         } else if (errorData['erros'] is Map) {
-           // Pega o primeiro erro detalhado de campo
            final fieldErrors = errorData['erros'] as Map<String, dynamic>;
            if (fieldErrors.isNotEmpty) {
              errorMessage = fieldErrors.values.first.toString();
@@ -83,7 +75,6 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
            errorMessage = "Ocorreu um erro (${error.statusCode}). Consulte o console.";
         }
       } catch (_) {
-        // Se o body não for JSON, usa a mensagem genérica
         errorMessage = "Ocorreu um erro (${error.statusCode}). Consulte o console.";
       }
     } else if (error is Exception) {
@@ -96,7 +87,7 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
     });
   }
 
-  // Limpar formulário e estado de edição
+  /// Limpa os campos do formulário e o estado de edição.
   void limparFormulario({bool manterVisibilidade = false}) {
     funcionarioEditando = null;
     nomeCtrl.clear();
@@ -105,7 +96,6 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
     senhaCtrl.clear();
     cargo = "";
     departamento = "";
-    // Limpa apenas o erro se o form for fechado
     if(!manterVisibilidade) {
       setState(() {
         mostrarForm = false;
@@ -117,6 +107,7 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
 
   // --- LÓGICA DE DADOS ---
 
+  /// Decodifica o token JWT para extrair o 'role' do usuário logado.
   Future<void> carregarTokenRole() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("token");
@@ -127,17 +118,17 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
         final payload = jsonDecode(
           utf8.decode(base64.decode(base64.normalize(parts[1]))),
         );
-        // ⚠️ Use setState para atualizar o userRole e reconstruir o widget
         setState(() => userRole = payload["role"]);
       }
     }
   }
 
+  /// Busca a lista de funcionários na API.
   Future<void> carregarFuncionarios() async {
     setState(() {
       mensagemAlerta = "";
       isError = false;
-      loading = true; // Adicionado loading na lista também
+      loading = true;
     });
     try {
       final data = await FuncionarioService.getFuncionarios();
@@ -149,6 +140,7 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
     }
   }
 
+  /// Preenche o formulário com dados de um funcionário para edição.
   void preencherForm(Map<String, dynamic> f) {
     limparFormulario(manterVisibilidade: true);
     
@@ -156,13 +148,14 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
     nomeCtrl.text = f['nome'] ?? "";
     emailCtrl.text = f['email'] ?? "";
     cpfCtrl.text = f['cpf'] ?? "";
-    senhaCtrl.text = ""; // Senha nunca deve ser preenchida
+    senhaCtrl.text = "";
     cargo = f['cargo'] ?? "";
     departamento = f['departamento'] ?? "";
 
     setState(() => mostrarForm = true);
   }
 
+  /// Salva (cria ou atualiza) um funcionário na API.
   Future<void> salvarFuncionario() async {
     setState(() {
       loading = true;
@@ -170,13 +163,13 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
       isError = false;
     });
     
-    // Apenas envia a senha se estiver no modo de criação OU se o campo não estiver vazio na edição.
+    // Define a senha a ser enviada (somente se não for edição OU se o campo for preenchido na edição).
     String? senhaParaEnviar = senhaCtrl.text.isNotEmpty ? senhaCtrl.text : null;
     if (funcionarioEditando != null && senhaCtrl.text.isEmpty) {
-        senhaParaEnviar = null; // Não envia a senha se for edição e o campo estiver vazio
+        senhaParaEnviar = null;
     }
     
-    // Validação básica de campos obrigatórios no cadastro
+    // Validação de campos obrigatórios no cadastro.
     if (funcionarioEditando == null) {
         if (nomeCtrl.text.isEmpty || emailCtrl.text.isEmpty || cpfCtrl.text.isEmpty || senhaParaEnviar == null || cargo.isEmpty || departamento.isEmpty) {
             setState(() {
@@ -188,7 +181,6 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
         }
     }
 
-
     final body = {
       "nome": nomeCtrl.text,
       "email": emailCtrl.text,
@@ -198,7 +190,7 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
       "departamento": departamento.isEmpty ? null : departamento,
     };
     
-    // Remove chaves nulas do body (especialmente a senha)
+    // Remove chaves nulas para não enviar dados desnecessários na atualização.
     body.removeWhere((key, value) => value == null);
 
     try {
@@ -233,6 +225,7 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
     }
   }
 
+  /// Deleta um funcionário da API usando seu ID.
   Future<void> deletarFuncionario(int id) async {
     setState(() {
       mensagemAlerta = "";
@@ -252,7 +245,7 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
 
   // --- WIDGETS DE ESTILO ---
 
-  // Função para padronizar o estilo do Input (replicado da UsuarioScreen)
+  /// Estilo padrão para os campos de entrada.
   InputDecoration inputStyle(String label) {
     return InputDecoration(
       labelText: label,
@@ -265,7 +258,7 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
     );
   }
 
-  // Formulário de Cadastro/Edição (Replicado e Adaptado para Funcionário)
+  /// Constrói o widget do formulário de cadastro/edição.
   Widget buildForm() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -307,7 +300,7 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
           const SizedBox(height: 10),
           TextField(
             controller: senhaCtrl,
-            decoration: inputStyle(funcionarioEditando != null ? "Nova Senha (Opcional)" : "Senha"),
+            decoration: inputStyle(funcionarioEditando != null ? "Nova Senha" : "Senha"),
             obscureText: true,
           ),
           const SizedBox(height: 10),
@@ -358,7 +351,7 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
     );
   }
 
-  // Card de Listagem (Replicado e Adaptado para Funcionário)
+  /// Constrói o widget de cartão para exibir um funcionário na lista.
   Widget buildCard(dynamic funcionario) {
     return Card(
       elevation: 3,
@@ -388,7 +381,6 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.delete, color: Colors.red),
-              // O ID do funcionário deve ser convertido para int, se for o caso
               onPressed: () => deletarFuncionario(funcionario["id"] as int), 
             ),
           ],
@@ -405,7 +397,7 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
         padding: const EdgeInsets.all(20),
         child: Column(
           children: [
-            // Header + botão expandir (Replicado da UsuarioScreen)
+            // Header + botão expandir
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -449,7 +441,7 @@ class _FuncionariosScreenState extends State<FuncionariosScreen> {
 
             const SizedBox(height: 30),
 
-            // Mensagem de Alerta (para operações de delete ou falha geral)
+            // Mensagem de Alerta (para delete ou falha geral)
             if (mensagemAlerta.isNotEmpty && !mostrarForm)
               Container(
                 padding: const EdgeInsets.all(12),

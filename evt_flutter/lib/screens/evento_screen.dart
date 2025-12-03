@@ -1,13 +1,12 @@
-// lib/screens/evento_screen.dart
 import 'package:evt_flutter/widgets/app_layout.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import 'dart:convert'; // 🎯 Adicionar para jsonDecode, utf8 e base64
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/evento_service.dart';
 import '../services/local_service.dart';
-import '../services/usuarios_service.dart'; // Importação do serviço de Usuários
-import '../widgets/app_header.dart'; // Assumindo que AppHeader está disponível
+import '../services/usuarios_service.dart';
+import '../widgets/app_header.dart';
 
 class EventosPage extends StatefulWidget {
   const EventosPage({Key? key}) : super(key: key);
@@ -20,8 +19,8 @@ class EventosPage extends StatefulWidget {
 class _EventosPageState extends State<EventosPage> {
   // === ESTADO E CONTROLADORES ===
   List<dynamic> eventos = [];
-  List<dynamic> locais = []; // Locais disponíveis
-  List<dynamic> palestrantes = []; // Usuários disponíveis
+  List<dynamic> locais = [];
+  List<dynamic> palestrantes = [];
   Map<String, dynamic>? eventoEditando;
   String? userRole;
 
@@ -34,9 +33,9 @@ class _EventosPageState extends State<EventosPage> {
   int? localId;
   int? palestranteId;
 
-  String mensagemAlerta = ""; // Alterado para seguir o nome de UsuarioScreen
-  bool isError = false; // Adicionado para seguir o nome de UsuarioScreen
-  bool loading = false; // Adicionado para seguir o nome de UsuarioScreen
+  String mensagemAlerta = "";
+  bool isError = false;
+  bool loading = false;
   bool mostrarForm = false;
 
   final tiposEvento = [
@@ -63,6 +62,7 @@ class _EventosPageState extends State<EventosPage> {
 
   // === LÓGICA DE DADOS ===
 
+  /// Decodifica o token JWT para extrair o 'role' do usuário logado.
   Future<void> carregarTokenRole() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("token");
@@ -73,12 +73,12 @@ class _EventosPageState extends State<EventosPage> {
         final payload = jsonDecode(
           utf8.decode(base64.decode(base64.normalize(parts[1]))),
         );
-        // ⚠️ Use setState para atualizar o userRole e reconstruir o widget
         setState(() => userRole = payload["role"]);
       }
     }
   }
 
+  /// Carrega eventos, locais e usuários (palestrantes) da API.
   Future<void> carregarDados() async {
     setState(() {
       mensagemAlerta = "";
@@ -102,6 +102,7 @@ class _EventosPageState extends State<EventosPage> {
     }
   }
 
+  /// Limpa os campos do formulário e o estado de edição.
   void limparForm({bool manterVisibilidade = false}) {
     setState(() {
       eventoEditando = null;
@@ -112,16 +113,17 @@ class _EventosPageState extends State<EventosPage> {
       tipoEvento = "PRESENCIAL";
       localId = null;
       palestranteId = null;
-      mensagemAlerta = ""; // Limpa a mensagem ao limpar o formulário
-      isError = false; // Limpa o estado de erro
+      mensagemAlerta = "";
+      isError = false;
       if (!manterVisibilidade) {
         mostrarForm = false;
       }
     });
   }
 
+  /// Preenche o formulário com dados de um evento para edição.
   void preencherForm(Map<String, dynamic> e) {
-    limparForm(manterVisibilidade: true); // Limpa campos, mas mantém 'mostrarForm' true
+    limparForm(manterVisibilidade: true);
     
     final dataString = e['data'];
     final localIdValue = e['localId'];
@@ -134,7 +136,7 @@ class _EventosPageState extends State<EventosPage> {
       } catch (_) {}
     }
 
-    // Garante que os IDs sejam tratados como int (necessário para Dropdown)
+    // Garante que IDs sejam tratados como int.
     final parsedLocalId = localIdValue is int ? localIdValue : (localIdValue is String ? int.tryParse(localIdValue) : null);
     final parsedPalestranteId = palestranteIdValue is int ? palestranteIdValue : (palestranteIdValue is String ? int.tryParse(palestranteIdValue) : null);
 
@@ -153,6 +155,7 @@ class _EventosPageState extends State<EventosPage> {
     });
   }
 
+  /// Abre o seletor de data e hora.
   Future<void> selecionarData(BuildContext context) async {
     final DateTime? dataSelecionada = await showDatePicker(
       context: context,
@@ -181,6 +184,7 @@ class _EventosPageState extends State<EventosPage> {
     }
   }
 
+  /// Salva (cria ou atualiza) o evento na API, incluindo validações.
   Future<void> salvar() async {
     setState(() {
       loading = true;
@@ -236,7 +240,7 @@ class _EventosPageState extends State<EventosPage> {
       "descricao": descricaoCtrl.text,
       "data": dataEvento!.toIso8601String(),
       "tipoEvento": tipoEvento,
-      "estadoEvento": "ABERTO", // Assumindo estado inicial
+      "estadoEvento": "ABERTO",
       "vagas": int.tryParse(vagasCtrl.text) ?? 0,
       "localId": tipoEvento == "REMOTO" ? null : localId,
       "palestranteId": palestranteId,
@@ -270,6 +274,7 @@ class _EventosPageState extends State<EventosPage> {
     }
   }
 
+  /// Deleta um evento da API.
   Future<void> deletar(int id) async {
     setState(() {
       mensagemAlerta = "";
@@ -290,8 +295,9 @@ class _EventosPageState extends State<EventosPage> {
     }
   }
 
-  // === WIDGETS DE DESIGN (COPIADOS/ADAPTADOS DE _UsuarioScreenState) ===
+  // === WIDGETS DE DESIGN ===
 
+  /// Estilo padrão para os campos de entrada.
   InputDecoration inputStyle(String label) {
     return InputDecoration(
       labelText: label,
@@ -304,12 +310,13 @@ class _EventosPageState extends State<EventosPage> {
     );
   }
 
-  // Widget auxiliar para formatar a data
+  /// Widget auxiliar para formatar a data.
   String _formatarData(DateTime? date) {
     if (date == null) return "Selecione data e hora";
     return DateFormat('dd/MM/yyyy HH:mm').format(date);
   }
 
+  /// Constrói o widget do formulário de cadastro/edição.
   Widget buildForm() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -372,7 +379,7 @@ class _EventosPageState extends State<EventosPage> {
                 ),
               ),
               const SizedBox(width: 10),
-              // Vagas (Campo de texto com design de inputStyle)
+              // Vagas
               SizedBox(
                 width: 100,
                 child: TextField(
@@ -404,9 +411,9 @@ class _EventosPageState extends State<EventosPage> {
             value: palestranteId,
             decoration: inputStyle("Palestrante"),
             items: palestrantes.map((p) => DropdownMenuItem<int>(
-                  value: p['id'] as int,
-                  child: Text(p['nome'] ?? 'Usuário Sem Nome'),
-                )).toList(),
+                    value: p['id'] as int,
+                    child: Text(p['nome'] ?? 'Usuário Sem Nome'),
+                  )).toList(),
             onChanged: (v) => setState(() => palestranteId = v),
             isExpanded: true,
           ),
@@ -420,9 +427,9 @@ class _EventosPageState extends State<EventosPage> {
                   value: localId,
                   decoration: inputStyle("Local do Evento"),
                   items: locais.map((l) => DropdownMenuItem<int>(
-                        value: l['id'] as int,
-                        child: Text(l['nome'] ?? 'Local Sem Nome'),
-                      )).toList(),
+                          value: l['id'] as int,
+                          child: Text(l['nome'] ?? 'Local Sem Nome'),
+                        )).toList(),
                   onChanged: (v) => setState(() => localId = v),
                   isExpanded: true,
                 ),
@@ -462,6 +469,7 @@ class _EventosPageState extends State<EventosPage> {
     );
   }
 
+  /// Constrói o widget de cartão para exibir um evento na lista.
   Widget buildCard(dynamic evento) {
     // Busca o nome do palestrante e local para exibição
     final palestranteNome = palestrantes.firstWhere(
@@ -493,7 +501,7 @@ class _EventosPageState extends State<EventosPage> {
             Text("Vagas: ${evento['vagas'] ?? 0}"),
           ],
         ),
-        isThreeLine: true, // Garante espaço para mais linhas
+        isThreeLine: true,
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -539,10 +547,10 @@ class _EventosPageState extends State<EventosPage> {
                   ),
                   onPressed: () {
                     if (mostrarForm) {
-                      limparForm(); // Limpa e fecha
+                      limparForm();
                     } else {
-                      limparForm(manterVisibilidade: true); // Limpa mas só vai mostrar se mostrarForm for true
-                      setState(() => mostrarForm = true); // Alterna e mostra o formulário limpo
+                      limparForm(manterVisibilidade: true);
+                      setState(() => mostrarForm = true);
                     }
                   },
                   icon: Icon(

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import '../services/usuarios_service.dart'; // Importação: UsuarioService
+import '../services/usuarios_service.dart';
 import 'package:evt_flutter/widgets/app_layout.dart';
 import '../widgets/app_header.dart';
-import 'dart:convert'; // 🎯 Adicionar para jsonDecode, utf8 e base64
+import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class UsuarioScreen extends StatefulWidget {
@@ -48,6 +48,7 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
 
   // --- LÓGICA DE DADOS ---
 
+  // Decodifica o token JWT para obter o papel (role) do usuário logado
   Future<void> carregarTokenRole() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("token");
@@ -58,19 +59,18 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
         final payload = jsonDecode(
           utf8.decode(base64.decode(base64.normalize(parts[1]))),
         );
-        // ⚠️ Use setState para atualizar o userRole e reconstruir o widget
         setState(() => userRole = payload["role"]);
       }
     }
   }
 
+  // Busca a lista de usuários na API
   Future<void> carregarUsuarios() async {
     setState(() {
       mensagemAlerta = "";
       isError = false;
     });
     try {
-      // CORREÇÃO: Usando UsuarioService (singular)
       final data = await UsuarioService.getUsuarios();
       setState(() => usuarios = data);
     } catch (e) {
@@ -81,6 +81,7 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
     }
   }
 
+  // Preenche o formulário para edição
   void preencherForm(Map<String, dynamic> usuario) {
     limparFormulario(manterVisibilidade: true);
     
@@ -89,11 +90,12 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
     nomeCtrl.text = usuario["nome"] ?? "";
     emailCtrl.text = usuario["email"] ?? "";
     cpfCtrl.text = usuario["cpf"] ?? "";
-    senhaCtrl.text = ""; // Nunca preencha a senha existente
+    senhaCtrl.text = ""; 
 
     setState(() => mostrarForm = true);
   }
 
+  // Salva ou atualiza o usuário (Criação/Edição)
   Future<void> salvar() async {
     setState(() {
       loading = true;
@@ -105,28 +107,26 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
       "nome": nomeCtrl.text,
       "email": emailCtrl.text,
       "cpf": cpfCtrl.text,
-      // Só envia a senha se estiver no modo Cadastro ou se for digitada na Edição
+      // Inclui a senha apenas se não for vazio
       if (senhaCtrl.text.isNotEmpty) "senha": senhaCtrl.text,
     };
 
     try {
       if (usuarioEditando != null) {
-        // ID é necessário para edição
+        // LÓGICA DE EDIÇÃO
         final id = usuarioEditando!["id"]; 
         if (id == null) throw Exception("ID do usuário não encontrado para edição.");
         
-        // CORREÇÃO: Usando UsuarioService (singular)
         await UsuarioService.editarUsuario(id, body);
         setState(() {
           mensagemAlerta = "Usuário atualizado com sucesso!";
           isError = false;
         });
       } else {
-        // A senha é obrigatória no cadastro
+        // LÓGICA DE CRIAÇÃO
         if (senhaCtrl.text.isEmpty) {
             throw Exception("A senha é obrigatória para o cadastro.");
         }
-        // CORREÇÃO: Usando UsuarioService (singular)
         await UsuarioService.criarUsuario(body);
         setState(() {
           mensagemAlerta = "Usuário cadastrado com sucesso!";
@@ -148,13 +148,13 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
     }
   }
 
+  // Deleta um usuário pelo ID
   Future<void> deletar(int id) async {
     setState(() {
       mensagemAlerta = "";
       isError = false;
     });
     try {
-      // CORREÇÃO: Usando UsuarioService (singular)
       await UsuarioService.deletarUsuario(id);
       await carregarUsuarios();
       setState(() {
@@ -169,6 +169,7 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
     }
   }
 
+  // Limpa os campos do formulário
   void limparFormulario({bool manterVisibilidade = false}) {
     usuarioEditando = null;
     nomeCtrl.clear();
@@ -182,6 +183,7 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
 
   // --- WIDGETS ---
 
+  // Estilo padrão para os inputs
   InputDecoration inputStyle(String label) {
     return InputDecoration(
       labelText: label,
@@ -194,6 +196,7 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
     );
   }
 
+  // Formulário de Cadastro/Edição
   Widget buildForm() {
     return Container(
       padding: const EdgeInsets.all(20),
@@ -235,7 +238,7 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
           const SizedBox(height: 10),
           TextField(
             controller: senhaCtrl,
-            decoration: inputStyle(usuarioEditando != null ? "Nova Senha (Opcional)" : "Senha"),
+            decoration: inputStyle(usuarioEditando != null ? "Nova Senha" : "Senha"),
             obscureText: true,
           ),
           const SizedBox(height: 20),
@@ -269,6 +272,7 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
     );
   }
 
+  // Card de exibição do usuário na lista
   Widget buildCard(dynamic usuario) {
     return Card(
       elevation: 3,
@@ -296,7 +300,6 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
             ),
             IconButton(
               icon: const Icon(Icons.delete, color: Colors.red),
-              // O ID do usuário geralmente é um inteiro no Spring
               onPressed: () => deletar(usuario["id"] as int), 
             ),
           ],
@@ -357,7 +360,7 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
 
             const SizedBox(height: 30),
 
-            // Mensagem de Alerta (para operações de delete ou falha geral)
+            // Mensagem de Alerta (após Delete ou erro de carregamento)
             if (mensagemAlerta.isNotEmpty && !mostrarForm)
               Container(
                 padding: const EdgeInsets.all(12),
@@ -387,6 +390,7 @@ class _UsuarioScreenState extends State<UsuarioScreen> {
             if (usuarios.isEmpty)
               const Text("Nenhum usuário cadastrado", style: TextStyle(color: Colors.grey)),
 
+            // Lista os cards de usuários
             ...usuarios.map(buildCard).toList(),
           ],
         ),

@@ -1,11 +1,8 @@
-// lib/widgets/app_header.dart (CORRIGIDO PARA MOBILE E JWT ROBUSTO)
-
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
-
-// ⚠️ IMPORTAÇÕES NECESSÁRIAS PARA A NAVEGAÇÃO INSTANTÂNEA:
+import 'package:flutter/foundation.dart' show kIsWeb;
 import '../screens/participacao_screen.dart'; 
 import '../screens/local_screen.dart'; 
 import '../screens/evento_screen.dart'; 
@@ -34,7 +31,7 @@ class _AppHeaderState extends State<AppHeader> {
     carregarUsuario();
   }
 
-  // ✅ FUNÇÃO CORRETA PARA NORMALIZAÇÃO
+  /// Normaliza a string base64url para base64 padrão (para decodificação).
   String normalizeBase64(String str) {
     str = str.replaceAll('-', '+').replaceAll('_', '/');
     while (str.length % 4 != 0) {
@@ -43,13 +40,13 @@ class _AppHeaderState extends State<AppHeader> {
     return str;
   }
 
+  /// Carrega o token JWT e decodifica o payload para obter dados do usuário e role.
   Future<void> carregarUsuario() async {
     final prefs = await SharedPreferences.getInstance();
     final token = prefs.getString("token");
 
     if (token == null) return;
 
-    // 1. Verificar se o token tem 3 partes (Header.Payload.Signature)
     final parts = token.split('.');
     if (parts.length != 3) {
       print("Erro: Token JWT inválido. Não possui 3 partes.");
@@ -59,7 +56,7 @@ class _AppHeaderState extends State<AppHeader> {
     try {
       final payloadEncoded = parts[1];
       
-      // 2. 🎯 USAR A NORMALIZAÇÃO NO PAYLOAD ANTES DE DECODIFICAR
+      // Usa a função de normalização no payload
       final normalizedPayload = normalizeBase64(payloadEncoded); 
 
       final payload = jsonDecode(
@@ -72,6 +69,7 @@ class _AppHeaderState extends State<AppHeader> {
     }
   }
 
+  /// Remove o token e navega para a tela de autenticação.
   Future<void> logout() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove("token");
@@ -81,9 +79,7 @@ class _AppHeaderState extends State<AppHeader> {
 
   @override
   Widget build(BuildContext context) {
-    // 💡 LÓGICA DE RESPONSIVIDADE: Obtém a largura da tela
     final screenWidth = MediaQuery.of(context).size.width;
-    // Define o breakpoint para o menu completo
     final bool showFullMenu = screenWidth > 800; 
 
     final role = userData?["role"] ?? "VISITANTE";
@@ -91,10 +87,17 @@ class _AppHeaderState extends State<AppHeader> {
     final isGerente = role == "GERENTE";
 
     return AppBar(
-      // ⚠️ REMOVIDA LÓGICA MANUAL: Deixe o Flutter decidir se deve mostrar o botão de voltar.
-      // Se tiver um Drawer, ele será substituído pelo ícone de menu.
-      automaticallyImplyLeading: true, 
-      
+      automaticallyImplyLeading: false, 
+      leading: showFullMenu 
+        ? null // Se for tela grande, o leading é nulo.
+        : IconButton(
+            icon: const Icon(Icons.menu),
+            color: headerTextColor,
+            onPressed: () {
+              // Abre o Drawer. O Scaffold.of(context) é usado para acessar o Scaffold pai.
+              Scaffold.of(context).openDrawer(); 
+            },
+          ),
       backgroundColor: headerBgColor, 
       elevation: 4,
       iconTheme: IconThemeData(color: headerTextColor), 
@@ -105,13 +108,13 @@ class _AppHeaderState extends State<AppHeader> {
         padding: const EdgeInsets.symmetric(horizontal: 16.0),
         
         child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween, // 🎯 Corrigido para espaçamento horizontal
+          mainAxisAlignment: MainAxisAlignment.spaceBetween, 
           children: [
-            // LOGO
+            // LOGO E MENU
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // LOGO SVG
+                // LOGO
                 SvgPicture.asset(
                   "assets/EventosTech_20251104_074448_0000.svg",
                   height: 40,
@@ -119,7 +122,7 @@ class _AppHeaderState extends State<AppHeader> {
                 ),
                 const SizedBox(width: 20),
                 
-                // MENU DE NAVEGAÇÃO (Aparece apenas se houver largura suficiente)
+                // MENU DE NAVEGAÇÃO
                 if (showFullMenu)
                   Row(
                     children: [
@@ -136,8 +139,6 @@ class _AppHeaderState extends State<AppHeader> {
                   ),
               ],
             ),
-            
-            // ⚠️ REMOVIDO: const Spacer(), // O Spacer causa o overflow em telas pequenas
             
             // INFO DO USUÁRIO E LOGOUT
             if (userData != null)
@@ -164,25 +165,20 @@ class _AppHeaderState extends State<AppHeader> {
                   ),
                 ],
               )
-            // ⚠️ REMOVIDO: O ÍCONE DE MENU MANUAL FOI REMOVIDO.
-            // O Flutter irá adicionar o ícone de menu se o Scaffold tiver um Drawer.
           ],
         ),
       ),
     );
   }
 
-  // ✅ WIDGET AUXILIAR PARA NAVEGAÇÃO INSTANTÂNEA
-  // ... (função _link e _getWidgetForRoute permanecem inalteradas) ...
+  /// Cria um link de navegação instantânea.
   Widget _link(String text, String route) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       child: InkWell(
         onTap: () {
-          // Usa PageRouteBuilder para transição instantânea (sem animação)
           Navigator.of(context).push(
             PageRouteBuilder(
-              // Retorna o Widget mapeado pela rota
               pageBuilder: (context, animation1, animation2) => _getWidgetForRoute(route),
               // Transição instantânea
               transitionDuration: Duration.zero, 
@@ -202,21 +198,18 @@ class _AppHeaderState extends State<AppHeader> {
     );
   }
 
-  // ✅ MAPEA O NOME DA ROTA PARA O WIDGET DA TELA
+  /// Mapeia o nome da rota para o widget da tela correspondente.
   Widget _getWidgetForRoute(String routeName) {
     switch (routeName) {
       case "/participacoes":
         return const ParticipacaoPage();
       case "/locais":
-        // Corrigido para LocalScreen
         return const LocalScreen(); 
       case "/eventos":
         return const EventosPage();
       case "/funcionarios":
-        // Corrigido para FuncionariosScreen
         return const FuncionariosScreen(); 
       case "/usuarios":
-        // Corrigido para UsuarioScreen
         return const UsuarioScreen(); 
       default:
         return Scaffold(
